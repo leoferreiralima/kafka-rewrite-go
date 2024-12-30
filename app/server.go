@@ -12,9 +12,23 @@ func main() {
 		fmt.Println("Failed to bind to port 9092")
 		os.Exit(1)
 	}
-	_, err = l.Accept()
+	conn, err := l.Accept()
 	if err != nil {
 		fmt.Println("Error accepting connection: ", err.Error())
 		os.Exit(1)
+	}
+
+	defer conn.Close()
+
+	message_size := make([]byte, 4)
+	header := make([]byte, 4)
+	header[3] = 7
+
+	if _, err = conn.Write(message_size); err != nil {
+		panic(err)
+	}
+
+	if _, err = conn.Write(header); err != nil {
+		panic(err)
 	}
 }
