@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"net"
 	"os"
+
+	"github.com/codecrafters-io/kafka-starter-go/app/kafka"
 )
 
 func main() {
@@ -17,18 +19,24 @@ func main() {
 		fmt.Println("Error accepting connection: ", err.Error())
 		os.Exit(1)
 	}
-
 	defer conn.Close()
 
-	message_size := make([]byte, 4)
-	header := make([]byte, 4)
-	header[3] = 7
+	request, err := kafka.ParseRequest(conn)
 
-	if _, err = conn.Write(message_size); err != nil {
+	if err != nil {
+		fmt.Println("Error parsing request: ", err.Error())
 		panic(err)
 	}
 
-	if _, err = conn.Write(header); err != nil {
+	fmt.Printf("Request\n%d\n%x\n", request.MessageSize, request.CorrelationId)
+
+	response := kafka.NewResponse()
+	response.CorrelationId = request.CorrelationId
+
+	if err = response.Write(conn); err != nil {
+		fmt.Println("Error writing response: ", err.Error())
 		panic(err)
 	}
+
+	fmt.Printf("Response sended \n%x\n", response.CorrelationId)
 }
