@@ -85,6 +85,12 @@ func initSupportedApiVersions() {
 		MinVersion: 0,
 		MaxVersion: 4,
 	}
+
+	supportedApiVersions[support.DESCRIBE_TOPIC_PARTITIONS] = ApiKeyVersion{
+		Key:        support.DESCRIBE_TOPIC_PARTITIONS,
+		MinVersion: 0,
+		MaxVersion: 0,
+	}
 }
 
 func GetSupportedApiVersions() map[support.ApiKey]ApiKeyVersion {
