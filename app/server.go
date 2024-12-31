@@ -30,13 +30,22 @@ func main() {
 
 	fmt.Printf("Request\n%d\n%x\n", request.MessageSize, request.CorrelationId)
 
-	response := kafka.NewResponse()
-	response.CorrelationId = request.CorrelationId
+	response := requestHandler(request)
 
 	if err = response.Write(conn); err != nil {
 		fmt.Println("Error writing response: ", err.Error())
 		panic(err)
 	}
+}
 
-	fmt.Printf("Response sended \n%x\n", response.CorrelationId)
+func requestHandler(request *kafka.Request) (response kafka.Response) {
+	response = kafka.NewResponse()
+	response.CorrelationId = request.CorrelationId
+
+	apiVersion := request.ApiVersion
+	if apiVersion < 0 || apiVersion > 4 {
+		response.ErrorCode = kafka.UNSUPPORTED_VERSION
+	}
+
+	return response
 }

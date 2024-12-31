@@ -5,6 +5,10 @@ import (
 	"io"
 )
 
+type ErrorCode int16
+
+const UNSUPPORTED_VERSION ErrorCode = 35
+
 func ReadInt16(reader io.Reader) (int16, error) {
 	var value int16
 	err := binary.Read(reader, binary.BigEndian, &value)
