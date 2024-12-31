@@ -6,6 +6,8 @@ import (
 	"os"
 
 	"github.com/codecrafters-io/kafka-starter-go/app/kafka"
+	"github.com/codecrafters-io/kafka-starter-go/app/kafka/apis"
+	"github.com/codecrafters-io/kafka-starter-go/app/kafka/support"
 )
 
 func main() {
@@ -28,7 +30,7 @@ func main() {
 		panic(err)
 	}
 
-	fmt.Printf("Request\n%d\n%x\n", request.MessageSize, request.CorrelationId)
+	fmt.Printf("Request ApiKey: %d, ApiVersion: %d\n", request.ApiKey, request.ApiVersion)
 
 	response := requestHandler(request)
 
@@ -42,10 +44,26 @@ func requestHandler(request *kafka.Request) (response kafka.Response) {
 	response = kafka.NewResponse()
 	response.CorrelationId = request.CorrelationId
 
-	apiVersion := request.ApiVersion
-	if apiVersion < 0 || apiVersion > 4 {
-		response.ErrorCode = kafka.UNSUPPORTED_VERSION
+	if !apis.IsVersionSupported(request.ApiKey, request.ApiVersion) {
+		support.UNSUPPORTED_VERSION.Write(response.Body)
+		return response
 	}
 
+	switch request.ApiKey {
+	case support.API_VERSIONS:
+		apiVersionsHandler(request, &response)
+	}
 	return response
+}
+
+func apiVersionsHandler(_ *kafka.Request, response *kafka.Response) {
+	apiVersionsResponseBody := apis.NewApiVersionsResponseBody()
+
+	supportedApiKeys := apis.GetSupportedApiVersions()
+
+	for _, apiKey := range supportedApiKeys {
+		apiVersionsResponseBody.ApiKeys = append(apiVersionsResponseBody.ApiKeys, apiKey)
+	}
+
+	apiVersionsResponseBody.Write(response.Body)
 }

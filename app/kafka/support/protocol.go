@@ -1,13 +1,17 @@
-package kafka
+package support
 
 import (
 	"encoding/binary"
 	"io"
 )
 
-type ErrorCode int16
-
-const UNSUPPORTED_VERSION ErrorCode = 35
+func WriteInt8(writer io.Writer, value int8) error {
+	err := binary.Write(writer, binary.BigEndian, &value)
+	if err != nil {
+		return err
+	}
+	return nil
+}
 
 func ReadInt16(reader io.Reader) (int16, error) {
 	var value int16

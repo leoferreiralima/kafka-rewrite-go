@@ -2,11 +2,13 @@ package kafka
 
 import (
 	"io"
+
+	"github.com/codecrafters-io/kafka-starter-go/app/kafka/support"
 )
 
 type Request struct {
 	MessageSize   int32
-	ApiKey        int16
+	ApiKey        support.ApiKey
 	ApiVersion    int16
 	CorrelationId int32
 	Data          []byte
@@ -15,19 +17,22 @@ type Request struct {
 func ParseRequest(reader io.Reader) (request *Request, err error) {
 	request = new(Request)
 
-	if request.MessageSize, err = ReadInt32(reader); err != nil {
+	if request.MessageSize, err = support.ReadInt32(reader); err != nil {
 		return nil, err
 	}
 
-	if request.ApiKey, err = ReadInt16(reader); err != nil {
+	apiKey, err := support.ReadInt16(reader)
+	if err != nil {
 		return nil, err
 	}
 
-	if request.ApiVersion, err = ReadInt16(reader); err != nil {
+	request.ApiKey = support.ApiKey(apiKey)
+
+	if request.ApiVersion, err = support.ReadInt16(reader); err != nil {
 		return nil, err
 	}
 
-	if request.CorrelationId, err = ReadInt32(reader); err != nil {
+	if request.CorrelationId, err = support.ReadInt32(reader); err != nil {
 		return nil, err
 	}
 
