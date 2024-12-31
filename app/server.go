@@ -16,27 +16,38 @@ func main() {
 		fmt.Println("Failed to bind to port 9092")
 		os.Exit(1)
 	}
-	conn, err := l.Accept()
-	if err != nil {
-		fmt.Println("Error accepting connection: ", err.Error())
-		os.Exit(1)
+
+	for {
+		conn, err := l.Accept()
+		if err != nil {
+			fmt.Println("Error accepting connection: ", err.Error())
+			os.Exit(1)
+		}
+
+		go handleNewConnection(conn)
 	}
+
+}
+
+func handleNewConnection(conn net.Conn) {
 	defer conn.Close()
 
-	request, err := kafka.ParseRequest(conn)
+	for {
+		request, err := kafka.ParseRequest(conn)
 
-	if err != nil {
-		fmt.Println("Error parsing request: ", err.Error())
-		panic(err)
-	}
+		if err != nil {
+			fmt.Println("Error parsing request: ", err.Error())
+			panic(err)
+		}
 
-	fmt.Printf("Request ApiKey: %d, ApiVersion: %d\n", request.ApiKey, request.ApiVersion)
+		fmt.Printf("Request ApiKey: %d, ApiVersion: %d\n", request.ApiKey, request.ApiVersion)
 
-	response := requestHandler(request)
+		response := requestHandler(request)
 
-	if err = response.Write(conn); err != nil {
-		fmt.Println("Error writing response: ", err.Error())
-		panic(err)
+		if err = response.Write(conn); err != nil {
+			fmt.Println("Error writing response: ", err.Error())
+			panic(err)
+		}
 	}
 }
 
