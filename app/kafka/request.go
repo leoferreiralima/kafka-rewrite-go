@@ -1,6 +1,7 @@
 package kafka
 
 import (
+	"bytes"
 	"io"
 
 	"github.com/codecrafters-io/kafka-starter-go/app/kafka/support"
@@ -11,7 +12,8 @@ type Request struct {
 	ApiKey        support.ApiKey
 	ApiVersion    int16
 	CorrelationId int32
-	Data          []byte
+	ClientId      string
+	Body          io.Reader
 }
 
 func ParseRequest(reader io.Reader) (request *Request, err error) {
@@ -38,11 +40,23 @@ func ParseRequest(reader io.Reader) (request *Request, err error) {
 
 	remaningBytesToRead := request.MessageSize - 8
 
-	request.Data = make([]byte, remaningBytesToRead)
+	data := make([]byte, remaningBytesToRead)
 
-	if _, err = reader.Read(request.Data); err != nil {
+	if _, err = reader.Read(data); err != nil {
 		return nil, err
 	}
+
+	dataReader := bytes.NewReader(data)
+
+	if request.ClientId, err = support.ReadString(dataReader); err != nil {
+		return nil, err
+	}
+
+	if _, err = support.ReadByte(dataReader); err != nil {
+		return nil, err
+	}
+
+	request.Body = dataReader
 
 	return request, nil
 }

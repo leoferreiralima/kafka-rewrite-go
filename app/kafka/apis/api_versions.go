@@ -7,14 +7,39 @@ import (
 	"github.com/codecrafters-io/kafka-starter-go/app/kafka/support"
 )
 
+type ApiVersionsRequestBody struct {
+	ClientId      string
+	ClientVersion string
+	TagBuffer     byte
+}
+
+func ParseApiVersionRequestBody(reader io.Reader) (requestBody *ApiVersionsRequestBody, err error) {
+	requestBody = new(ApiVersionsRequestBody)
+
+	if requestBody.ClientId, err = support.ReadCompactString(reader); err != nil {
+		return nil, err
+	}
+
+	if requestBody.ClientVersion, err = support.ReadCompactString(reader); err != nil {
+		return nil, err
+	}
+
+	if requestBody.TagBuffer, err = support.ReadByte(reader); err != nil {
+		return nil, err
+	}
+
+	return requestBody, nil
+}
+
 type ApiVersionsResponseBody struct {
 	ErrorCode      support.ErrorCode
 	ApiKeys        []ApiKeyVersion
 	ThrottleTimeMs int32
+	TagBuffer      byte
 }
 
-func NewApiVersionsResponseBody() ApiVersionsResponseBody {
-	return ApiVersionsResponseBody{
+func NewApiVersionsResponseBody() *ApiVersionsResponseBody {
+	return &ApiVersionsResponseBody{
 		ThrottleTimeMs: 0,
 	}
 }
@@ -39,7 +64,7 @@ func (r *ApiVersionsResponseBody) Write(writer io.Writer) error {
 		return err
 	}
 
-	if err := support.WriteInt8(writer, 0); err != nil {
+	if err := support.WriteByte(writer, r.TagBuffer); err != nil {
 		return nil
 	}
 
@@ -50,6 +75,7 @@ type ApiKeyVersion struct {
 	Key        support.ApiKey
 	MinVersion int16
 	MaxVersion int16
+	TagBuffer  byte
 }
 
 func (a *ApiKeyVersion) Write(writer io.Writer) error {
@@ -66,7 +92,7 @@ func (a *ApiKeyVersion) Write(writer io.Writer) error {
 		return err
 	}
 
-	if err := support.WriteInt8(writer, 0); err != nil {
+	if err := support.WriteByte(writer, a.TagBuffer); err != nil {
 		return nil
 	}
 

@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"net"
 	"os"
 
@@ -36,45 +37,106 @@ func handleNewConnection(conn net.Conn) {
 		request, err := kafka.ParseRequest(conn)
 
 		if err != nil {
-			fmt.Println("Error parsing request: ", err.Error())
+			if err == io.EOF {
+				fmt.Println("Connection ended")
+				break
+			}
 			panic(err)
 		}
 
 		fmt.Printf("Request ApiKey: %d, ApiVersion: %d\n", request.ApiKey, request.ApiVersion)
 
-		response := requestHandler(request)
+		response, err := requestHandler(request)
+
+		if err != nil {
+			fmt.Println("Error on handle request: ", err.Error())
+			break
+		}
 
 		if err = response.Write(conn); err != nil {
 			fmt.Println("Error writing response: ", err.Error())
-			panic(err)
+			break
 		}
 	}
 }
 
-func requestHandler(request *kafka.Request) (response kafka.Response) {
+type KafkaRequestHandlerFunc func(request *kafka.Request, response *kafka.Response) error
+
+func requestHandler(request *kafka.Request) (response kafka.Response, err error) {
 	response = kafka.NewResponse()
 	response.CorrelationId = request.CorrelationId
 
 	if !apis.IsVersionSupported(request.ApiKey, request.ApiVersion) {
 		support.UNSUPPORTED_VERSION.Write(response.Body)
-		return response
+		return response, nil
 	}
 
-	switch request.ApiKey {
-	case support.API_VERSIONS:
-		apiVersionsHandler(request, &response)
+	handler := getKafkaRequestHandler(request.ApiKey)
+
+	if err = handler(request, &response); err != nil {
+		return response, err
 	}
-	return response
+	return response, nil
 }
 
-func apiVersionsHandler(_ *kafka.Request, response *kafka.Response) {
-	apiVersionsResponseBody := apis.NewApiVersionsResponseBody()
+func getKafkaRequestHandler(apiKey support.ApiKey) KafkaRequestHandlerFunc {
+	switch apiKey {
+	case support.API_VERSIONS:
+		return apiVersionsHandler
+	case support.DESCRIBE_TOPIC_PARTITIONS:
+		return describeTopicPartitionsHandler
+	}
+
+	return func(_ *kafka.Request, _ *kafka.Response) error {
+		return fmt.Errorf("handler not found")
+	}
+}
+
+func apiVersionsHandler(request *kafka.Request, response *kafka.Response) error {
+	requestBody, err := apis.ParseApiVersionRequestBody(request.Body)
+
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("ClientName: %s, ClientVersion: %s\n", requestBody.ClientId, requestBody.ClientVersion)
+
+	responseBody := apis.NewApiVersionsResponseBody()
 
 	supportedApiKeys := apis.GetSupportedApiVersions()
 
 	for _, apiKey := range supportedApiKeys {
-		apiVersionsResponseBody.ApiKeys = append(apiVersionsResponseBody.ApiKeys, apiKey)
+		responseBody.ApiKeys = append(responseBody.ApiKeys, apiKey)
 	}
 
-	apiVersionsResponseBody.Write(response.Body)
+	responseBody.Write(response.Body)
+
+	return nil
+}
+
+func describeTopicPartitionsHandler(request *kafka.Request, response *kafka.Response) error {
+	requestBody, err := apis.ParseDescribeTopicPartitionsRequestBody(request.Body)
+
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("Topics: %s\nResponsePartionLimit: %d\n", requestBody.Topics, requestBody.ResponsePartionLimit)
+
+	responseBody := apis.NewDescribeTopicPartitionsResponseBody()
+
+	for _, topic := range requestBody.Topics {
+		topicResponse := &apis.PartitionsTopicsResponseBody{
+			ErrorCode:            support.UNKNOWN_TOPIC,
+			Name:                 topic,
+			IsInternal:           false,
+			AuthorizedOperations: 0b0000_1101_1111_1000,
+		}
+
+		responseBody.Topics = append(responseBody.Topics, topicResponse)
+	}
+
+	responseBody.Write(response.Body)
+
+	return nil
 }

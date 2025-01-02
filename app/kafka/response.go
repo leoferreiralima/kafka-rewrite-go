@@ -2,7 +2,6 @@ package kafka
 
 import (
 	"bytes"
-	"fmt"
 	"io"
 
 	"github.com/codecrafters-io/kafka-starter-go/app/kafka/support"
@@ -12,6 +11,7 @@ type Response struct {
 	MessageSize   int32
 	CorrelationId int32
 	Body          *bytes.Buffer
+	TagBuffer     byte
 }
 
 func NewResponse() Response {
@@ -31,8 +31,6 @@ func (r *Response) Write(writer io.Writer) (err error) {
 	if err = support.WriteInt32(writer, r.CorrelationId); err != nil {
 		return err
 	}
-
-	fmt.Println(r.Body.Bytes())
 
 	if _, err = writer.Write(r.Body.Bytes()); err != nil {
 		return err
