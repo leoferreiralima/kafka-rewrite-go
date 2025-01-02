@@ -3,7 +3,7 @@ package apis
 import (
 	"io"
 
-	"github.com/codecrafters-io/kafka-starter-go/app/kafka/support"
+	"github.com/codecrafters-io/kafka-starter-go/app/support"
 )
 
 type DescribeTopicPartitionsRequestBody struct {

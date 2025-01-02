@@ -1,10 +1,10 @@
-package kafka
+package server
 
 import (
 	"bytes"
 	"io"
 
-	"github.com/codecrafters-io/kafka-starter-go/app/kafka/support"
+	"github.com/codecrafters-io/kafka-starter-go/app/support"
 )
 
 type Response struct {

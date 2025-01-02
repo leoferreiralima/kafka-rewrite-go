@@ -4,7 +4,7 @@ import (
 	"io"
 	"sync"
 
-	"github.com/codecrafters-io/kafka-starter-go/app/kafka/support"
+	"github.com/codecrafters-io/kafka-starter-go/app/support"
 )
 
 type ApiVersionsRequestBody struct {
@@ -106,14 +106,14 @@ var supportedApiVersionsOnce sync.Once
 func initSupportedApiVersions() {
 	supportedApiVersions = make(map[support.ApiKey]ApiKeyVersion)
 
-	supportedApiVersions[support.API_VERSIONS] = ApiKeyVersion{
-		Key:        support.API_VERSIONS,
+	supportedApiVersions[support.ApiVersions] = ApiKeyVersion{
+		Key:        support.ApiVersions,
 		MinVersion: 0,
 		MaxVersion: 4,
 	}
 
-	supportedApiVersions[support.DESCRIBE_TOPIC_PARTITIONS] = ApiKeyVersion{
-		Key:        support.DESCRIBE_TOPIC_PARTITIONS,
+	supportedApiVersions[support.DescribeTopicPartitions] = ApiKeyVersion{
+		Key:        support.DescribeTopicPartitions,
 		MinVersion: 0,
 		MaxVersion: 0,
 	}

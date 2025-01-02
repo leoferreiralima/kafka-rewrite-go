@@ -6,9 +6,9 @@ import (
 	"net"
 	"os"
 
-	"github.com/codecrafters-io/kafka-starter-go/app/kafka"
-	"github.com/codecrafters-io/kafka-starter-go/app/kafka/apis"
-	"github.com/codecrafters-io/kafka-starter-go/app/kafka/support"
+	"github.com/codecrafters-io/kafka-starter-go/app/server"
+	"github.com/codecrafters-io/kafka-starter-go/app/server/apis"
+	"github.com/codecrafters-io/kafka-starter-go/app/support"
 )
 
 func main() {
@@ -34,7 +34,7 @@ func handleNewConnection(conn net.Conn) {
 	defer conn.Close()
 
 	for {
-		request, err := kafka.ParseRequest(conn)
+		request, err := server.ParseRequest(conn)
 
 		if err != nil {
 			if err == io.EOF {
@@ -44,7 +44,7 @@ func handleNewConnection(conn net.Conn) {
 			panic(err)
 		}
 
-		fmt.Printf("Request ApiKey: %d, ApiVersion: %d\n", request.ApiKey, request.ApiVersion)
+		fmt.Printf("Request ApiKey: %d, ApiVersion: %d\n", request.ApiVersion.Key, request.ApiVersion.Version)
 
 		response, err := requestHandler(request)
 
@@ -60,18 +60,18 @@ func handleNewConnection(conn net.Conn) {
 	}
 }
 
-type KafkaRequestHandlerFunc func(request *kafka.Request, response *kafka.Response) error
+type KafkaRequestHandlerFunc func(request *server.Request, response *server.Response) error
 
-func requestHandler(request *kafka.Request) (response kafka.Response, err error) {
-	response = kafka.NewResponse()
-	response.CorrelationId = request.CorrelationId
+func requestHandler(request *server.Request) (response server.Response, err error) {
+	response = server.NewResponse()
+	response.CorrelationId = request.CorrelationId()
 
-	if !apis.IsVersionSupported(request.ApiKey, request.ApiVersion) {
-		support.UNSUPPORTED_VERSION.Write(response.Body)
+	if !apis.IsVersionSupported(request.ApiVersion.Key, request.ApiVersion.Version) {
+		support.UnsupportedVersion.Write(response.Body)
 		return response, nil
 	}
 
-	handler := getKafkaRequestHandler(request.ApiKey)
+	handler := getKafkaRequestHandler(request.ApiVersion.Key)
 
 	if err = handler(request, &response); err != nil {
 		return response, err
@@ -81,18 +81,18 @@ func requestHandler(request *kafka.Request) (response kafka.Response, err error)
 
 func getKafkaRequestHandler(apiKey support.ApiKey) KafkaRequestHandlerFunc {
 	switch apiKey {
-	case support.API_VERSIONS:
+	case support.ApiVersions:
 		return apiVersionsHandler
-	case support.DESCRIBE_TOPIC_PARTITIONS:
+	case support.DescribeTopicPartitions:
 		return describeTopicPartitionsHandler
 	}
 
-	return func(_ *kafka.Request, _ *kafka.Response) error {
+	return func(_ *server.Request, _ *server.Response) error {
 		return fmt.Errorf("handler not found")
 	}
 }
 
-func apiVersionsHandler(request *kafka.Request, response *kafka.Response) error {
+func apiVersionsHandler(request *server.Request, response *server.Response) error {
 	requestBody, err := apis.ParseApiVersionRequestBody(request.Body)
 
 	if err != nil {
@@ -114,7 +114,7 @@ func apiVersionsHandler(request *kafka.Request, response *kafka.Response) error 
 	return nil
 }
 
-func describeTopicPartitionsHandler(request *kafka.Request, response *kafka.Response) error {
+func describeTopicPartitionsHandler(request *server.Request, response *server.Response) error {
 	requestBody, err := apis.ParseDescribeTopicPartitionsRequestBody(request.Body)
 
 	if err != nil {
@@ -127,7 +127,7 @@ func describeTopicPartitionsHandler(request *kafka.Request, response *kafka.Resp
 
 	for _, topic := range requestBody.Topics {
 		topicResponse := &apis.PartitionsTopicsResponseBody{
-			ErrorCode:            support.UNKNOWN_TOPIC,
+			ErrorCode:            support.UnknownTopic,
 			Name:                 topic,
 			IsInternal:           false,
 			AuthorizedOperations: 0b0000_1101_1111_1000,

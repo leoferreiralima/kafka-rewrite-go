@@ -5,8 +5,8 @@ import "io"
 type ErrorCode int16
 
 const (
-	UNSUPPORTED_VERSION ErrorCode = 35
-	UNKNOWN_TOPIC       ErrorCode = 3
+	UnsupportedVersion ErrorCode = 35
+	UnknownTopic       ErrorCode = 3
 )
 
 func (e ErrorCode) Write(writer io.Writer) error {
