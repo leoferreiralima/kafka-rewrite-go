@@ -1,12 +1,12 @@
 package kafka
 
 import (
-	"encoding/binary"
 	"io"
 	"reflect"
 	"sort"
-	"strconv"
 	"sync"
+
+	"github.com/codecrafters-io/kafka-starter-go/app/utils"
 )
 
 type InvalidDecodeError struct {
@@ -29,7 +29,19 @@ type Decoder struct {
 	reader io.Reader
 }
 
-type decodeFunc func(d *Decoder, v reflect.Value) error
+type DecoderOpts struct {
+	Version int
+	Compact bool // TODO: compact to be not shared between array and string
+}
+
+func (d *DecoderOpts) withTagOps(tagOpts *tagOpts) *DecoderOpts {
+	return &DecoderOpts{
+		d.Version,
+		tagOpts.compact,
+	}
+}
+
+type decoderFunc func(d *Decoder, opts *DecoderOpts, v *reflect.Value) error
 
 func NewDecoder(reader io.Reader) *Decoder {
 	return &Decoder{
@@ -38,41 +50,66 @@ func NewDecoder(reader io.Reader) *Decoder {
 }
 
 func (d *Decoder) Decode(data any) (err error) {
+	return d.DecodeWithOpts(data, new(DecoderOpts))
+}
+
+func (d *Decoder) DecodeWithOpts(data any, opts *DecoderOpts) (err error) {
 	v := reflect.ValueOf(data)
-	t := reflect.TypeOf(data)
 
 	if v.Kind() != reflect.Pointer || v.IsNil() {
-		return &InvalidDecodeError{t}
+		return &InvalidDecodeError{reflect.TypeOf(data)}
 	}
 
 	v = v.Elem()
 
-	decode := getDecoder(v)
+	decode := cachedDecoder(v.Type())
 
-	if err = decode(d, v); err != nil {
+	if err = decode(d, opts, &v); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func getDecoder(v reflect.Value) decodeFunc {
-	switch v.Kind() {
-	case reflect.Struct:
-		return structDecode
+func getDecoder(t reflect.Type) decoderFunc {
+	switch t.Kind() {
 	case reflect.Int16:
-		return int16Decode
+		return int16Decoder
 	case reflect.Int32:
-		return int32Decode
+		return int32Decoder
+	case reflect.String:
+		return stringDecoder
+	case reflect.Uint32:
+		return uint32Decoder
+	case reflect.Uint8:
+		return byteDecoder
+	case reflect.Array:
+		return arrayDecoder
+	case reflect.Slice:
+		return sliceDecoder
+	case reflect.Struct:
+		return structDecoder
 	default:
 		return nil
 	}
 }
 
-func int16Decode(d *Decoder, v reflect.Value) error {
+var decodeFuncCache sync.Map // map[reflect.Kind][]decodeFunc
+
+func cachedDecoder(t reflect.Type) decoderFunc {
+	k := t.Kind()
+	if f, ok := decodeFuncCache.Load(k); ok {
+		return f.(decoderFunc)
+	}
+
+	f, _ := decodeFuncCache.LoadOrStore(k, getDecoder(t))
+	return f.(decoderFunc)
+}
+
+func int16Decoder(d *Decoder, _ *DecoderOpts, v *reflect.Value) (err error) {
 	var value int16
-	err := binary.Read(d.reader, binary.BigEndian, &value)
-	if err != nil {
+
+	if value, err = utils.ReadInt16(d.reader); err != nil {
 		return err
 	}
 
@@ -80,24 +117,83 @@ func int16Decode(d *Decoder, v reflect.Value) error {
 	return nil
 }
 
-func int32Decode(d *Decoder, v reflect.Value) error {
+func int32Decoder(d *Decoder, _ *DecoderOpts, v *reflect.Value) (err error) {
 	var value int32
-	err := binary.Read(d.reader, binary.BigEndian, &value)
-	if err != nil {
+
+	if value, err = utils.ReadInt32(d.reader); err != nil {
 		return err
 	}
 
 	v.SetInt(int64(value))
 	return nil
+}
+
+func uint32Decoder(d *Decoder, _ *DecoderOpts, v *reflect.Value) (err error) {
+	var value uint32
+
+	if value, err = utils.ReadUint32(d.reader); err != nil {
+		return err
+	}
+
+	v.SetUint(uint64(value))
+	return nil
+}
+
+func byteDecoder(d *Decoder, _ *DecoderOpts, v *reflect.Value) (err error) {
+	var value byte
+
+	if value, err = utils.ReadByte(d.reader); err != nil {
+		return err
+	}
+
+	v.SetUint(uint64(value))
+	return nil
+}
+
+func stringDecoder(d *Decoder, opts *DecoderOpts, v *reflect.Value) (err error) {
+	var lenght int16
+
+	if lenght, err = readStringLenght(d, opts); err != nil {
+		return err
+	}
+
+	if lenght < 0 {
+		return
+	}
+
+	var str string
+
+	if str, err = utils.ReadString(d.reader, lenght); err != nil {
+		return err
+	}
+
+	v.SetString(str)
+	return nil
+}
+
+func readStringLenght(d *Decoder, opts *DecoderOpts) (lenght int16, err error) {
+	if opts.Compact {
+		var compactLenght uint8
+		if compactLenght, err = utils.ReadUint8(d.reader); err != nil {
+			return 0, err
+		}
+		return int16(compactLenght) - 1, nil
+	} else {
+		if lenght, err = utils.ReadInt16(d.reader); err != nil {
+			return 0, err
+		}
+	}
+
+	return lenght, nil
 }
 
 type structField struct {
-	v          reflect.Value
-	order      int
-	decodeFunc decodeFunc
+	fieldIdx   int
+	tagOps     *tagOpts
+	decodeFunc decoderFunc
 }
 
-func structDecode(d *Decoder, v reflect.Value) (err error) {
+func structDecoder(d *Decoder, opts *DecoderOpts, v *reflect.Value) (err error) {
 	fields, err := cachedTypeFields(v)
 
 	if err != nil {
@@ -105,20 +201,28 @@ func structDecode(d *Decoder, v reflect.Value) (err error) {
 	}
 
 	for _, field := range fields {
-		if err = field.decodeFunc(d, field.v); err != nil {
-			return nil
+		if field.tagOps.minVersion > opts.Version {
+			continue
+		}
+		fv := v.Field(field.fieldIdx)
+		if err = field.decodeFunc(d, opts.withTagOps(field.tagOps), &fv); err != nil {
+			return err
 		}
 	}
 
 	return nil
 }
 
-func typeFields(v reflect.Value) (fields []structField, err error) {
+func typeFields(v *reflect.Value) (fields []structField, err error) {
 	t := v.Type()
 
 	for i := range t.NumField() {
 		field := t.Field(i)
 		val := v.Field(i)
+
+		if !field.IsExported() {
+			continue
+		}
 
 		if val.Kind() == reflect.Pointer {
 			val = val.Elem()
@@ -130,21 +234,22 @@ func typeFields(v reflect.Value) (fields []structField, err error) {
 			continue
 		}
 
-		structField := new(structField)
-		structField.v = val
-		structField.decodeFunc = getDecoder(val)
+		var tagOpts tagOpts
 
-		order, _ := parseTag(tag)
-
-		if structField.order, err = strconv.Atoi(order); err != nil {
+		if tagOpts, err = parseTag(tag); err != nil {
 			return fields, err
 		}
+
+		structField := new(structField)
+		structField.fieldIdx = i
+		structField.tagOps = &tagOpts
+		structField.decodeFunc = getDecoder(val.Type())
 
 		fields = append(fields, *structField)
 	}
 
 	sort.Slice(fields, func(i, j int) bool {
-		return fields[i].order < fields[j].order
+		return fields[i].tagOps.order < fields[j].tagOps.order
 	})
 
 	return fields, nil
@@ -152,7 +257,7 @@ func typeFields(v reflect.Value) (fields []structField, err error) {
 
 var fieldCache sync.Map // map[reflect.Type][]structField
 
-func cachedTypeFields(v reflect.Value) ([]structField, error) {
+func cachedTypeFields(v *reflect.Value) ([]structField, error) {
 	t := v.Type()
 	if f, ok := fieldCache.Load(t); ok {
 		return f.([]structField), nil
@@ -163,4 +268,68 @@ func cachedTypeFields(v reflect.Value) ([]structField, error) {
 	}
 	f, _ := fieldCache.LoadOrStore(t, fields)
 	return f.([]structField), nil
+}
+
+func arrayDecoder(d *Decoder, opts *DecoderOpts, v *reflect.Value) (err error) {
+	var lenght int32
+
+	if lenght, err = readArrayLenght(d, opts); err != nil {
+		return err
+	}
+
+	if lenght < 0 {
+		return
+	}
+
+	elemType := v.Type().Elem()
+	elemDecoder := cachedDecoder(elemType)
+	for i := range int(lenght) {
+		elemValue := v.Index(i)
+		if err = elemDecoder(d, opts, &elemValue); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func sliceDecoder(d *Decoder, opts *DecoderOpts, v *reflect.Value) (err error) {
+	var lenght int32
+
+	if lenght, err = readArrayLenght(d, opts); err != nil {
+		return err
+	}
+
+	if lenght < 0 {
+		return
+	}
+
+	elemType := v.Type().Elem()
+	elemDecoder := cachedDecoder(elemType)
+	for range int(lenght) {
+		elemValue := reflect.New(elemType).Elem()
+		if err = elemDecoder(d, opts, &elemValue); err != nil {
+			return err
+		}
+
+		v.Set(reflect.Append(*v, elemValue))
+	}
+
+	return nil
+}
+
+func readArrayLenght(d *Decoder, opts *DecoderOpts) (lenght int32, err error) {
+	if opts.Compact {
+		var compactLenght uint8
+		if compactLenght, err = utils.ReadUint8(d.reader); err != nil {
+			return 0, err
+		}
+		return int32(compactLenght) - 1, nil
+	} else {
+		if lenght, err = utils.ReadInt32(d.reader); err != nil {
+			return 0, err
+		}
+	}
+
+	return lenght, nil
 }

@@ -9,18 +9,10 @@ import (
 	"github.com/codecrafters-io/kafka-starter-go/app/support"
 )
 
-type RequestHeadersV0 struct {
-	CorrelationId int32 `kafka:"0"`
-}
-
-type RequestHeadersV1 struct {
-	RequestHeadersV0
-	ClientId string `kafka:"1"`
-}
-
-type RequestHeadersV2 struct {
-	RequestHeadersV1
-	TaggedFields []protocol.TaggedField `kafka:"2"`
+type RequestHeaders struct {
+	CorrelationId int32                  `kafka:"0,minVersion=0"`
+	ClientId      string                 `kafka:"1,minVersion=1"`
+	TaggedFields  []protocol.TaggedField `kafka:"2,minVersion=2,compact"`
 }
 
 type Request struct {
@@ -29,41 +21,8 @@ type Request struct {
 		Key     support.ApiKey `kafka:"0"`
 		Version int16          `kafka:"1"`
 	}
-	headers any
+	Headers RequestHeaders
 	Body    io.Reader
-}
-
-func (r *Request) CorrelationId() int32 {
-	switch h := r.headers.(type) {
-	case RequestHeadersV0:
-		return h.CorrelationId
-	case RequestHeadersV1:
-		return h.CorrelationId
-	case RequestHeadersV2:
-		return h.CorrelationId
-	default:
-		return 0
-	}
-}
-
-func (r *Request) ClientId() string {
-	switch h := r.headers.(type) {
-	case RequestHeadersV1:
-		return h.ClientId
-	case RequestHeadersV2:
-		return h.ClientId
-	default:
-		return ""
-	}
-}
-
-func (r *Request) TaggedFields() []protocol.TaggedField {
-	switch h := r.headers.(type) {
-	case RequestHeadersV2:
-		return h.TaggedFields
-	default:
-		return []protocol.TaggedField{}
-	}
 }
 
 func ParseRequest(reader io.Reader) (request *Request, err error) {
@@ -85,20 +44,11 @@ func ParseRequest(reader io.Reader) (request *Request, err error) {
 		return nil, err
 	}
 
-	headers := new(RequestHeadersV0)
-
-	request.headers = headers
-	// if request.CorrelationId, err = support.ReadInt32(reader); err != nil {
-	// 	return nil, err
-	// }
-
-	// if request.ClientId, err = support.ReadString(dataReader); err != nil {
-	// 	return nil, err
-	// }
-
-	// if _, err = support.ReadByte(dataReader); err != nil {
-	// 	return nil, err
-	// }
+	if err = decoder.DecodeWithOpts(&request.Headers, &kafka.DecoderOpts{
+		Version: 2,
+	}); err != nil {
+		return nil, err
+	}
 
 	request.Body = messageReader
 

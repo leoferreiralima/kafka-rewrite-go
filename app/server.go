@@ -64,7 +64,7 @@ type KafkaRequestHandlerFunc func(request *server.Request, response *server.Resp
 
 func requestHandler(request *server.Request) (response server.Response, err error) {
 	response = server.NewResponse()
-	response.CorrelationId = request.CorrelationId()
+	response.CorrelationId = request.Headers.CorrelationId
 
 	if !apis.IsVersionSupported(request.ApiVersion.Key, request.ApiVersion.Version) {
 		support.UnsupportedVersion.Write(response.Body)
