@@ -3,39 +3,21 @@ package apis
 import (
 	"io"
 
+	"github.com/codecrafters-io/kafka-starter-go/app/protocol"
 	"github.com/codecrafters-io/kafka-starter-go/app/support"
 )
 
-type DescribeTopicPartitionsRequestBody struct {
-	Topics               []string
-	ResponsePartionLimit int32
+type DescribeTopicPartitionsRequest struct {
+	Topics []struct {
+		Name         string                 `kafka:"0,compact"`
+		TaggedFields []protocol.TaggedField `kafka:"1,compact"`
+	} `kafka:"0,compact"`
+	ResponsePartionLimit int32 `kafka:"1"`
 	Cursor               struct {
-		Topic          string
-		PartitionIndex int32
-	}
-	TagBuffer byte
-}
-
-func ParseDescribeTopicPartitionsRequestBody(reader io.Reader) (requestBody *DescribeTopicPartitionsRequestBody, err error) {
-	requestBody = new(DescribeTopicPartitionsRequestBody)
-
-	if requestBody.Topics, err = support.ReadCompactArray(reader, support.ReadCompactString); err != nil {
-		return nil, err
-	}
-
-	if requestBody.ResponsePartionLimit, err = support.ReadInt32(reader); err != nil {
-		return nil, err
-	}
-
-	if _, err = support.ReadByte(reader); err != nil {
-		return nil, err
-	}
-
-	if requestBody.TagBuffer, err = support.ReadByte(reader); err != nil {
-		return nil, err
-	}
-
-	return requestBody, nil
+		Topic          string `kafka:"0"`
+		PartitionIndex int32  `kafka:"1"`
+	} `kafka:"2,nullable"`
+	TaggedFields []protocol.TaggedField `kafka:"3,compact"`
 }
 
 type DescribeTopicPartitionsResponseBody struct {

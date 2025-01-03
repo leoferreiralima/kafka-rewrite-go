@@ -2,6 +2,7 @@ package server
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 
 	"github.com/codecrafters-io/kafka-starter-go/app/encoding/kafka"
@@ -52,6 +53,10 @@ func ParseRequest(reader io.Reader) (request *Request, err error) {
 
 	request.Body = messageReader
 
+	if b, ok := messageReader.(*bytes.Buffer); ok {
+		fmt.Println(b.Bytes())
+	}
+
 	return request, nil
 }
 
@@ -62,5 +67,5 @@ func readMessage(reader io.Reader, messageSize int32) (bytesReader io.Reader, er
 		return nil, err
 	}
 
-	return bytes.NewReader(message), nil
+	return bytes.NewBuffer(message), nil
 }

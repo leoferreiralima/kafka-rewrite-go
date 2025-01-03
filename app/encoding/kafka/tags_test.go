@@ -17,17 +17,40 @@ var testParseTagCases = []struct {
 		},
 	},
 	{
-		tag: "1,compact",
+		tag: "2,nullable",
 		expected: tagOpts{
-			order:   1,
+			order:    2,
+			nullable: true,
+		},
+	},
+	{
+		tag: "3,compact",
+		expected: tagOpts{
+			order:   3,
 			compact: true,
 		},
 	},
 	{
-		tag: "2,minVersion=1",
+		tag: "4,compact,nullable",
 		expected: tagOpts{
-			order:      2,
+			order:    4,
+			compact:  true,
+			nullable: true,
+		},
+	},
+	{
+		tag: "5,minVersion=1",
+		expected: tagOpts{
+			order:      5,
 			minVersion: 1,
+		},
+	},
+	{
+		tag: "6,minVersion=1,nullable",
+		expected: tagOpts{
+			order:      6,
+			minVersion: 1,
+			nullable:   true,
 		},
 	},
 	{
@@ -36,6 +59,15 @@ var testParseTagCases = []struct {
 			order:      10000,
 			minVersion: 10000,
 			compact:    true,
+		},
+	},
+	{
+		tag: "10001,minVersion=10001,compact,nullable",
+		expected: tagOpts{
+			order:      10001,
+			minVersion: 10001,
+			compact:    true,
+			nullable:   true,
 		},
 	},
 }

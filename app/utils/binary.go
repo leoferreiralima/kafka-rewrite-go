@@ -94,20 +94,6 @@ func WriteString(writer io.Writer, value string) (err error) {
 	return nil
 }
 
-func WriteCompactString(writer io.Writer, value string) (err error) {
-	length := int8(len(value)) + 1
-
-	if err = WriteInt8(writer, length); err != nil {
-		return err
-	}
-
-	if err = WriteByteArray(writer, []byte(value)); err != nil {
-		return nil
-	}
-
-	return nil
-}
-
 func ReadString(reader io.Reader, lenght int16) (string, error) {
 	bytes := make([]byte, lenght)
 
@@ -142,94 +128,4 @@ func WriteByteArray(writer io.Writer, bytes []byte) (err error) {
 	}
 
 	return nil
-}
-
-func WriteBool(writer io.Writer, value bool) (err error) {
-	if value {
-		if err = WriteByte(writer, 1); err != nil {
-			return err
-		}
-	} else {
-		if err = WriteByte(writer, 0); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-func ReadArray[E any](reader io.Reader, readerFunc ReaderFunc[E]) (array []E, err error) {
-	var lenght int32
-	if lenght, err = ReadInt32(reader); err != nil {
-		return array, err
-	}
-
-	if array, err = readArray(reader, readerFunc, lenght); err != nil {
-		return array, err
-	}
-
-	return array, nil
-}
-
-func WriteArray(writer io.Writer, items []Writer) (err error) {
-	lenght := int32(len(items)) + 1
-
-	if err = WriteInt32(writer, lenght); err != nil {
-		return err
-	}
-
-	for _, item := range items {
-		if err = item.Write(writer); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-func ReadCompactArray[E any](reader io.Reader, readerFunc ReaderFunc[E]) (array []E, err error) {
-	var lenght int8
-	if lenght, err = ReadInt8(reader); err != nil {
-		return array, err
-	}
-
-	if array, err = readArray(reader, readerFunc, int32(lenght)-1); err != nil {
-		return array, err
-	}
-
-	return array, nil
-}
-
-func WriteCompactArray[W Writer](writer io.Writer, items []W) (err error) {
-	lenght := int8(len(items)) + 1
-
-	if err = WriteInt8(writer, lenght); err != nil {
-		return err
-	}
-
-	for _, item := range items {
-		if err = item.Write(writer); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-func readArray[E any](reader io.Reader, readerFunc ReaderFunc[E], lenght int32) (array []E, err error) {
-	for i := 0; i < int(lenght); i++ {
-		var item E
-
-		if item, err = readerFunc(reader); err != nil {
-			return array, err
-		}
-
-		array = append(array, item)
-	}
-
-	if _, err = ReadByte(reader); err != nil {
-		return array, err
-	}
-
-	return array, err
 }

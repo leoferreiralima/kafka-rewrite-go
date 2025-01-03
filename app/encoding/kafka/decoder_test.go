@@ -168,6 +168,30 @@ func TestDecodeVersionedStruct(t *testing.T) {
 	}
 }
 
+func TestDecodeNullableStruct(t *testing.T) {
+	type ns struct {
+		Nullable struct {
+			Text string `kafka: "0"`
+		} `kafka: "0,nullable"`
+	}
+
+	expected := ns{}
+	buffer := new(bytes.Buffer)
+	binary.Write(buffer, binary.BigEndian, byte(0xff))
+	var result ns
+
+	if err := kafka.NewDecoder(buffer).DecodeWithOpts(&result, &kafka.DecoderOpts{
+		Nullable: true,
+	}); err != nil {
+		t.Errorf("unexpecte error %s", err)
+	}
+
+	if !reflect.DeepEqual(expected, result) {
+		t.Errorf("expected: %s, result: %s", fmt.Sprint(expected), fmt.Sprint(result))
+	}
+
+}
+
 func TestDecodeString(t *testing.T) {
 	expected := "this is a string."
 

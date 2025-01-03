@@ -4,31 +4,14 @@ import (
 	"io"
 	"sync"
 
+	"github.com/codecrafters-io/kafka-starter-go/app/protocol"
 	"github.com/codecrafters-io/kafka-starter-go/app/support"
 )
 
-type ApiVersionsRequestBody struct {
-	ClientId      string
-	ClientVersion string
-	TagBuffer     byte
-}
-
-func ParseApiVersionRequestBody(reader io.Reader) (requestBody *ApiVersionsRequestBody, err error) {
-	requestBody = new(ApiVersionsRequestBody)
-
-	if requestBody.ClientId, err = support.ReadCompactString(reader); err != nil {
-		return nil, err
-	}
-
-	if requestBody.ClientVersion, err = support.ReadCompactString(reader); err != nil {
-		return nil, err
-	}
-
-	if requestBody.TagBuffer, err = support.ReadByte(reader); err != nil {
-		return nil, err
-	}
-
-	return requestBody, nil
+type ApiVersionsRequest struct {
+	ClientId      string                 `kafka:"0,compact"`
+	ClientVersion string                 `kafka:"1,compact"`
+	TaggedFields  []protocol.TaggedField `kafka:"2,compact"`
 }
 
 type ApiVersionsResponseBody struct {

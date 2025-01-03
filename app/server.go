@@ -6,6 +6,7 @@ import (
 	"net"
 	"os"
 
+	"github.com/codecrafters-io/kafka-starter-go/app/encoding/kafka"
 	"github.com/codecrafters-io/kafka-starter-go/app/server"
 	"github.com/codecrafters-io/kafka-starter-go/app/server/apis"
 	"github.com/codecrafters-io/kafka-starter-go/app/support"
@@ -92,14 +93,14 @@ func getKafkaRequestHandler(apiKey support.ApiKey) KafkaRequestHandlerFunc {
 	}
 }
 
-func apiVersionsHandler(request *server.Request, response *server.Response) error {
-	requestBody, err := apis.ParseApiVersionRequestBody(request.Body)
+func apiVersionsHandler(request *server.Request, response *server.Response) (err error) {
+	var requestData apis.ApiVersionsRequest
 
-	if err != nil {
+	if err = kafka.NewDecoder(request.Body).Decode(&requestData); err != nil {
 		return err
 	}
 
-	fmt.Printf("ClientName: %s, ClientVersion: %s\n", requestBody.ClientId, requestBody.ClientVersion)
+	fmt.Printf("ClientName: %s, ClientVersion: %s\n", requestData.ClientId, requestData.ClientVersion)
 
 	responseBody := apis.NewApiVersionsResponseBody()
 
@@ -109,26 +110,25 @@ func apiVersionsHandler(request *server.Request, response *server.Response) erro
 		responseBody.ApiKeys = append(responseBody.ApiKeys, apiKey)
 	}
 
-	responseBody.Write(response.Body)
-
-	return nil
+	return responseBody.Write(response.Body)
 }
 
-func describeTopicPartitionsHandler(request *server.Request, response *server.Response) error {
-	requestBody, err := apis.ParseDescribeTopicPartitionsRequestBody(request.Body)
+func describeTopicPartitionsHandler(request *server.Request, response *server.Response) (err error) {
+	var requestData apis.DescribeTopicPartitionsRequest
 
-	if err != nil {
+	if err = kafka.NewDecoder(request.Body).Decode(&requestData); err != nil {
+		fmt.Println(requestData)
 		return err
 	}
 
-	fmt.Printf("Topics: %s\nResponsePartionLimit: %d\n", requestBody.Topics, requestBody.ResponsePartionLimit)
+	fmt.Printf("Topics: %s\nResponsePartionLimit: %d\n", fmt.Sprint(requestData.Topics), requestData.ResponsePartionLimit)
 
 	responseBody := apis.NewDescribeTopicPartitionsResponseBody()
 
-	for _, topic := range requestBody.Topics {
+	for _, topic := range requestData.Topics {
 		topicResponse := &apis.PartitionsTopicsResponseBody{
 			ErrorCode:            support.UnknownTopic,
-			Name:                 topic,
+			Name:                 topic.Name,
 			IsInternal:           false,
 			AuthorizedOperations: 0b0000_1101_1111_1000,
 		}
