@@ -23,16 +23,20 @@ type Encoder struct {
 }
 
 type EncoderOpts struct {
-	Version  int
-	Compact  bool // TODO: compact to be not shared between array and string
-	Nullable bool
+	Version      int
+	Compact      bool
+	Nilable      bool
+	ArrayCompact bool
+	ArrayNilable bool
 }
 
 func (e *EncoderOpts) withTagOps(tagOpts *tagOpts) *EncoderOpts {
 	return &EncoderOpts{
 		e.Version,
 		tagOpts.compact,
-		tagOpts.nullable,
+		tagOpts.nilable,
+		e.ArrayCompact,
+		e.ArrayNilable,
 	}
 }
 
@@ -83,9 +87,8 @@ func getEncoder(t reflect.Type) encoderFunc {
 		return uint32Encoder
 	case reflect.String:
 		return stringEncoder
-
-	// case reflect.Array:
-	// 	return arrayEncoder
+	case reflect.Array, reflect.Slice:
+		return arrayEncoder
 	// case reflect.Slice:
 	// 	return sliceEncoder
 	// case reflect.Struct:
@@ -152,11 +155,11 @@ func stringEncoder(e *Encoder, opts *EncoderOpts, v *reflect.Value) (err error) 
 	lenght := int16(len(str))
 
 	switch {
-	case lenght == 0 && opts.Nullable && opts.Compact:
+	case lenght == 0 && opts.Nilable && opts.Compact:
 		if err = e.writer.WriteByte(byte(0)); err != nil {
 			return err
 		}
-	case lenght == 0 && opts.Nullable:
+	case lenght == 0 && opts.Nilable:
 		if err = e.writer.WriteInt16(-1); err != nil {
 			return err
 		}
@@ -170,12 +173,95 @@ func stringEncoder(e *Encoder, opts *EncoderOpts, v *reflect.Value) (err error) 
 		}
 	}
 
+	if lenght == 0 {
+		return nil
+	}
+
 	if err = e.writer.WriteString(str); err != nil {
 		return err
 	}
 
 	return nil
 }
+
+func arrayEncoder(e *Encoder, opts *EncoderOpts, v *reflect.Value) (err error) {
+	lenght := v.Len()
+
+	switch {
+	case lenght == 0 && opts.ArrayNilable && opts.ArrayCompact:
+		if err = e.writer.WriteByte(byte(0)); err != nil {
+			return err
+		}
+	case lenght == 0 && opts.ArrayNilable:
+		if err = e.writer.WriteInt32(-1); err != nil {
+			return err
+		}
+	case opts.ArrayCompact:
+		if err = e.writer.WriteByte(byte(lenght + 1)); err != nil {
+			return err
+		}
+	default:
+		if err = e.writer.WriteInt32(int32(lenght)); err != nil {
+			return err
+		}
+	}
+
+	if lenght == 0 {
+		return nil
+	}
+
+	for i := range lenght {
+		elem := v.Index(i)
+
+		elemEncoder := cachedEncoder(elem.Type())
+
+		if err = elemEncoder(e, opts, &elem); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// func sliceEncoder(e *Encoder, opts *EncoderOpts, v *reflect.Value) (err error) {
+// 	lenght := v.Len()
+
+// 	switch {
+// 	case lenght == 0 && opts.ArrayNilable && opts.ArrayCompact:
+// 		if err = e.writer.WriteByte(byte(0)); err != nil {
+// 			return err
+// 		}
+// 	case lenght == 0 && opts.ArrayNilable:
+// 		if err = e.writer.WriteInt32(-1); err != nil {
+// 			return err
+// 		}
+// 	case opts.ArrayCompact:
+// 		if err = e.writer.WriteByte(byte(lenght + 1)); err != nil {
+// 			return err
+// 		}
+// 	default:
+// 		if err = e.writer.WriteInt32(int32(lenght)); err != nil {
+// 			return err
+// 		}
+// 	}
+
+// 	if lenght == 0 {
+// 		return nil
+// 	}
+
+// 	elemType := v.Type().Elem()
+// 	for range lenght {
+// 		elemValue := reflect.New(elemType).Elem()
+
+// 		elemEncoder := cachedEncoder(elem.Type())
+
+// 		if err = elemEncoder(e, opts, &elem); err != nil {
+// 			return err
+// 		}
+// 	}
+
+// 	return nil
+// }
 
 // type structField struct {
 // 	fieldIdx   int
@@ -184,14 +270,14 @@ func stringEncoder(e *Encoder, opts *EncoderOpts, v *reflect.Value) (err error) 
 // }
 
 // func structEncoder(e *Encoder, opts *EncoderOpts, v *reflect.Value) (err error) {
-// 	if opts.Nullable {
-// 		var nullableByte byte
+// 	if opts.Nilable {
+// 		var nilableByte byte
 
-// 		if nullableByte, err = e.writer.WriteByte(value); err != nil {
+// 		if nilableByte, err = e.writer.WriteByte(value); err != nil {
 // 			return err
 // 		}
 
-// 		if nullableByte == 0xff {
+// 		if nilableByte == 0xff {
 // 			return nil
 // 		}
 // 	}
@@ -270,67 +356,4 @@ func stringEncoder(e *Encoder, opts *EncoderOpts, v *reflect.Value) (err error) 
 // 	}
 // 	f, _ := fieldCache.LoadOrStore(t, fields)
 // 	return f.([]structField), nil
-// }
-
-// func arrayEncoder(e *Encoder, opts *EncoderOpts, v *reflect.Value) (err error) {
-// 	var lenght int32
-
-// 	if lenght, err = readArrayLenght(d, opts); err != nil {
-// 		return err
-// 	}
-
-// 	if lenght < 0 {
-// 		return
-// 	}
-
-// 	elemType := v.Type().Elem()
-// 	elemEncoder := cachedEncoder(elemType)
-// 	for i := range int(lenght) {
-// 		elemValue := v.Index(i)
-// 		if err = elemEncoder(d, opts, &elemValue); err != nil {
-// 			return err
-// 		}
-// 	}
-
-// 	return nil
-// }
-
-// func sliceEncoder(e *Encoder, opts *EncoderOpts, v *reflect.Value) (err error) {
-// 	var lenght int32
-
-// 	if lenght, err = readArrayLenght(d, opts); err != nil {
-// 		return err
-// 	}
-
-// 	if lenght < 0 {
-// 		return
-// 	}
-
-// 	elemType := v.Type().Elem()
-// 	elemEncoder := cachedEncoder(elemType)
-// 	for range int(lenght) {
-// 		elemValue := reflect.New(elemType).Elem()
-// 		if err = elemEncoder(d, opts, &elemValue); err != nil {
-// 			return err
-// 		}
-
-// 	}
-
-// 	return nil
-// }
-
-// func readArrayLenght(e *Encoder, opts *EncoderOpts) (lenght int32, err error) {
-// 	if opts.Compact {
-// 		var compactLenght uint8
-// 		if compactLenght, err = e.writer.WriteUint8(value); err != nil {
-// 			return 0, err
-// 		}
-// 		return int32(compactLenght) - 1, nil
-// 	} else {
-// 		if lenght, err = e.writer.WriteInt32(value); err != nil {
-// 			return 0, err
-// 		}
-// 	}
-
-// 	return lenght, nil
 // }

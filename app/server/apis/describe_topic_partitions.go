@@ -16,7 +16,7 @@ type DescribeTopicPartitionsRequest struct {
 	Cursor               struct {
 		Topic          string `kafka:"0"`
 		PartitionIndex int32  `kafka:"1"`
-	} `kafka:"2,nullable"`
+	} `kafka:"2,nilable"`
 	TaggedFields []protocol.TaggedField `kafka:"3,compact"`
 }
 

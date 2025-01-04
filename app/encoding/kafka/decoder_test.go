@@ -168,11 +168,11 @@ func TestDecodeVersionedStruct(t *testing.T) {
 	}
 }
 
-func TestDecodeNullableStruct(t *testing.T) {
+func TestDecodeNilableStruct(t *testing.T) {
 	type ns struct {
-		Nullable struct {
+		Nilable struct {
 			Text string `kafka: "0"`
-		} `kafka: "0,nullable"`
+		} `kafka: "0,nilable"`
 	}
 
 	expected := ns{}
@@ -181,7 +181,7 @@ func TestDecodeNullableStruct(t *testing.T) {
 	var result ns
 
 	if err := kafka.NewDecoder(buffer).DecodeWithOpts(&result, &kafka.DecoderOpts{
-		Nullable: true,
+		Nilable: true,
 	}); err != nil {
 		t.Errorf("unexpecte error %s", err)
 	}
@@ -301,6 +301,40 @@ func TestDecodeByte(t *testing.T) {
 
 	if expected != result {
 		t.Errorf("expected: %s, result: %s", fmt.Sprint(expected), fmt.Sprint(result))
+	}
+}
+
+func TestDecodeEmptyArray(t *testing.T) {
+
+	buffer := new(bytes.Buffer)
+	binary.Write(buffer, binary.BigEndian, int32(0))
+
+	result := [1]int32{-1}
+
+	if err := kafka.NewDecoder(buffer).Decode(&result); err != nil {
+		t.Fatalf("unexpecte error %s", err)
+	}
+
+	if result[0] != -1 {
+		t.Fatalf("expected: %d, result: %d", -1, result[0])
+	}
+}
+
+func TestDecodeEmptyCompactArray(t *testing.T) {
+
+	buffer := new(bytes.Buffer)
+	binary.Write(buffer, binary.BigEndian, byte(1))
+
+	result := [1]int32{-1}
+
+	if err := kafka.NewDecoder(buffer).DecodeWithOpts(&result, &kafka.DecoderOpts{
+		Compact: true,
+	}); err != nil {
+		t.Fatalf("unexpecte error %s", err)
+	}
+
+	if result[0] != -1 {
+		t.Fatalf("expected: %d, result: %d", -1, result[0])
 	}
 }
 

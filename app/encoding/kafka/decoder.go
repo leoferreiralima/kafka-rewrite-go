@@ -28,16 +28,16 @@ type Decoder struct {
 }
 
 type DecoderOpts struct {
-	Version  int
-	Compact  bool // TODO: compact to be not shared between array and string
-	Nullable bool
+	Version int
+	Compact bool // TODO: compact to be not shared between array and string
+	Nilable bool
 }
 
 func (d *DecoderOpts) withTagOps(tagOpts *tagOpts) *DecoderOpts {
 	return &DecoderOpts{
 		d.Version,
 		tagOpts.compact,
-		tagOpts.nullable,
+		tagOpts.nilable,
 	}
 }
 
@@ -194,14 +194,14 @@ type structField struct {
 }
 
 func structDecoder(d *Decoder, opts *DecoderOpts, v *reflect.Value) (err error) {
-	if opts.Nullable {
-		var nullableByte byte
+	if opts.Nilable {
+		var nilableByte byte
 
-		if nullableByte, err = d.reader.ReadByte(); err != nil {
+		if nilableByte, err = d.reader.ReadByte(); err != nil {
 			return err
 		}
 
-		if nullableByte == 0xff {
+		if nilableByte == 0xff {
 			return nil
 		}
 	}
