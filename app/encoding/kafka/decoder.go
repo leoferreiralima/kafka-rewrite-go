@@ -5,8 +5,6 @@ import (
 	"reflect"
 	"sort"
 	"sync"
-
-	"github.com/codecrafters-io/kafka-starter-go/app/utils"
 )
 
 type InvalidDecodeError struct {
@@ -26,7 +24,7 @@ func (e *InvalidDecodeError) Error() string {
 }
 
 type Decoder struct {
-	reader io.Reader
+	reader kafkaReader
 }
 
 type DecoderOpts struct {
@@ -47,7 +45,7 @@ type decoderFunc func(d *Decoder, opts *DecoderOpts, v *reflect.Value) error
 
 func NewDecoder(reader io.Reader) *Decoder {
 	return &Decoder{
-		reader: reader,
+		reader: newKafkaReader(reader),
 	}
 }
 
@@ -111,7 +109,7 @@ func cachedDecoder(t reflect.Type) decoderFunc {
 func int16Decoder(d *Decoder, _ *DecoderOpts, v *reflect.Value) (err error) {
 	var value int16
 
-	if value, err = utils.ReadInt16(d.reader); err != nil {
+	if value, err = d.reader.ReadInt16(); err != nil {
 		return err
 	}
 
@@ -122,7 +120,7 @@ func int16Decoder(d *Decoder, _ *DecoderOpts, v *reflect.Value) (err error) {
 func int32Decoder(d *Decoder, _ *DecoderOpts, v *reflect.Value) (err error) {
 	var value int32
 
-	if value, err = utils.ReadInt32(d.reader); err != nil {
+	if value, err = d.reader.ReadInt32(); err != nil {
 		return err
 	}
 
@@ -133,7 +131,7 @@ func int32Decoder(d *Decoder, _ *DecoderOpts, v *reflect.Value) (err error) {
 func uint32Decoder(d *Decoder, _ *DecoderOpts, v *reflect.Value) (err error) {
 	var value uint32
 
-	if value, err = utils.ReadUint32(d.reader); err != nil {
+	if value, err = d.reader.ReadUint32(); err != nil {
 		return err
 	}
 
@@ -144,7 +142,7 @@ func uint32Decoder(d *Decoder, _ *DecoderOpts, v *reflect.Value) (err error) {
 func byteDecoder(d *Decoder, _ *DecoderOpts, v *reflect.Value) (err error) {
 	var value byte
 
-	if value, err = utils.ReadByte(d.reader); err != nil {
+	if value, err = d.reader.ReadByte(); err != nil {
 		return err
 	}
 
@@ -165,7 +163,7 @@ func stringDecoder(d *Decoder, opts *DecoderOpts, v *reflect.Value) (err error) 
 
 	var str string
 
-	if str, err = utils.ReadString(d.reader, lenght); err != nil {
+	if str, err = d.reader.ReadString(lenght); err != nil {
 		return err
 	}
 
@@ -176,12 +174,12 @@ func stringDecoder(d *Decoder, opts *DecoderOpts, v *reflect.Value) (err error) 
 func readStringLenght(d *Decoder, opts *DecoderOpts) (lenght int16, err error) {
 	if opts.Compact {
 		var compactLenght uint8
-		if compactLenght, err = utils.ReadUint8(d.reader); err != nil {
+		if compactLenght, err = d.reader.ReadUint8(); err != nil {
 			return 0, err
 		}
 		return int16(compactLenght) - 1, nil
 	} else {
-		if lenght, err = utils.ReadInt16(d.reader); err != nil {
+		if lenght, err = d.reader.ReadInt16(); err != nil {
 			return 0, err
 		}
 	}
@@ -199,7 +197,7 @@ func structDecoder(d *Decoder, opts *DecoderOpts, v *reflect.Value) (err error) 
 	if opts.Nullable {
 		var nullableByte byte
 
-		if nullableByte, err = utils.ReadByte(d.reader); err != nil {
+		if nullableByte, err = d.reader.ReadByte(); err != nil {
 			return err
 		}
 
@@ -335,12 +333,12 @@ func sliceDecoder(d *Decoder, opts *DecoderOpts, v *reflect.Value) (err error) {
 func readArrayLenght(d *Decoder, opts *DecoderOpts) (lenght int32, err error) {
 	if opts.Compact {
 		var compactLenght uint8
-		if compactLenght, err = utils.ReadUint8(d.reader); err != nil {
+		if compactLenght, err = d.reader.ReadUint8(); err != nil {
 			return 0, err
 		}
 		return int32(compactLenght) - 1, nil
 	} else {
-		if lenght, err = utils.ReadInt32(d.reader); err != nil {
+		if lenght, err = d.reader.ReadInt32(); err != nil {
 			return 0, err
 		}
 	}

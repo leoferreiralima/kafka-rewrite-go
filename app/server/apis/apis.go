@@ -1,4 +1,4 @@
-package support
+package apis
 
 type ApiKey int16
 

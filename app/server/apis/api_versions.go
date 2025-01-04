@@ -15,7 +15,7 @@ type ApiVersionsRequest struct {
 }
 
 type ApiVersionsResponseBody struct {
-	ErrorCode      support.ErrorCode
+	ErrorCode      ErrorCode
 	ApiKeys        []ApiKeyVersion
 	ThrottleTimeMs int32
 	TagBuffer      byte
@@ -55,7 +55,7 @@ func (r *ApiVersionsResponseBody) Write(writer io.Writer) error {
 }
 
 type ApiKeyVersion struct {
-	Key        support.ApiKey
+	Key        ApiKey
 	MinVersion int16
 	MaxVersion int16
 	TagBuffer  byte
@@ -82,32 +82,32 @@ func (a *ApiKeyVersion) Write(writer io.Writer) error {
 	return nil
 }
 
-var supportedApiVersions map[support.ApiKey]ApiKeyVersion
+var supportedApiVersions map[ApiKey]ApiKeyVersion
 
 var supportedApiVersionsOnce sync.Once
 
 func initSupportedApiVersions() {
-	supportedApiVersions = make(map[support.ApiKey]ApiKeyVersion)
+	supportedApiVersions = make(map[ApiKey]ApiKeyVersion)
 
-	supportedApiVersions[support.ApiVersions] = ApiKeyVersion{
-		Key:        support.ApiVersions,
+	supportedApiVersions[ApiVersions] = ApiKeyVersion{
+		Key:        ApiVersions,
 		MinVersion: 0,
 		MaxVersion: 4,
 	}
 
-	supportedApiVersions[support.DescribeTopicPartitions] = ApiKeyVersion{
-		Key:        support.DescribeTopicPartitions,
+	supportedApiVersions[DescribeTopicPartitions] = ApiKeyVersion{
+		Key:        DescribeTopicPartitions,
 		MinVersion: 0,
 		MaxVersion: 0,
 	}
 }
 
-func GetSupportedApiVersions() map[support.ApiKey]ApiKeyVersion {
+func GetSupportedApiVersions() map[ApiKey]ApiKeyVersion {
 	supportedApiVersionsOnce.Do(initSupportedApiVersions)
 	return supportedApiVersions
 }
 
-func IsVersionSupported(apiKey support.ApiKey, version int16) bool {
+func IsVersionSupported(apiKey ApiKey, version int16) bool {
 	apiKeyVersion, exists := GetSupportedApiVersions()[apiKey]
 
 	if !exists {

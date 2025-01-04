@@ -9,7 +9,6 @@ import (
 	"github.com/codecrafters-io/kafka-starter-go/app/encoding/kafka"
 	"github.com/codecrafters-io/kafka-starter-go/app/server"
 	"github.com/codecrafters-io/kafka-starter-go/app/server/apis"
-	"github.com/codecrafters-io/kafka-starter-go/app/support"
 )
 
 func main() {
@@ -68,7 +67,7 @@ func requestHandler(request *server.Request) (response server.Response, err erro
 	response.CorrelationId = request.Headers.CorrelationId
 
 	if !apis.IsVersionSupported(request.ApiVersion.Key, request.ApiVersion.Version) {
-		support.UnsupportedVersion.Write(response.Body)
+		apis.UnsupportedVersion.Write(response.Body)
 		return response, nil
 	}
 
@@ -80,11 +79,11 @@ func requestHandler(request *server.Request) (response server.Response, err erro
 	return response, nil
 }
 
-func getKafkaRequestHandler(apiKey support.ApiKey) KafkaRequestHandlerFunc {
+func getKafkaRequestHandler(apiKey apis.ApiKey) KafkaRequestHandlerFunc {
 	switch apiKey {
-	case support.ApiVersions:
+	case apis.ApiVersions:
 		return apiVersionsHandler
-	case support.DescribeTopicPartitions:
+	case apis.DescribeTopicPartitions:
 		return describeTopicPartitionsHandler
 	}
 
@@ -127,7 +126,7 @@ func describeTopicPartitionsHandler(request *server.Request, response *server.Re
 
 	for _, topic := range requestData.Topics {
 		topicResponse := &apis.PartitionsTopicsResponseBody{
-			ErrorCode:            support.UnknownTopic,
+			ErrorCode:            apis.UnknownTopic,
 			Name:                 topic.Name,
 			IsInternal:           false,
 			AuthorizedOperations: 0b0000_1101_1111_1000,

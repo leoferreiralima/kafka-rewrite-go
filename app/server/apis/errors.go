@@ -1,6 +1,10 @@
-package support
+package apis
 
-import "io"
+import (
+	"io"
+
+	"github.com/codecrafters-io/kafka-starter-go/app/support"
+)
 
 type ErrorCode int16
 
@@ -10,7 +14,7 @@ const (
 )
 
 func (e ErrorCode) Write(writer io.Writer) error {
-	if err := WriteInt16(writer, int16(e)); err != nil {
+	if err := support.WriteInt16(writer, int16(e)); err != nil {
 		return err
 	}
 

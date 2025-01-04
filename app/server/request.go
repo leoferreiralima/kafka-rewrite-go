@@ -7,7 +7,7 @@ import (
 
 	"github.com/codecrafters-io/kafka-starter-go/app/encoding/kafka"
 	"github.com/codecrafters-io/kafka-starter-go/app/protocol"
-	"github.com/codecrafters-io/kafka-starter-go/app/support"
+	"github.com/codecrafters-io/kafka-starter-go/app/server/apis"
 )
 
 type RequestHeaders struct {
@@ -19,8 +19,8 @@ type RequestHeaders struct {
 type Request struct {
 	MessageSize int32
 	ApiVersion  struct {
-		Key     support.ApiKey `kafka:"0"`
-		Version int16          `kafka:"1"`
+		Key     apis.ApiKey `kafka:"0"`
+		Version int16       `kafka:"1"`
 	}
 	Headers RequestHeaders
 	Body    io.Reader

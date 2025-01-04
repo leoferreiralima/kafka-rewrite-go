@@ -58,7 +58,7 @@ func (r *DescribeTopicPartitionsResponseBody) Write(writer io.Writer) error {
 }
 
 type PartitionsTopicsResponseBody struct {
-	ErrorCode            support.ErrorCode
+	ErrorCode            ErrorCode
 	Name                 string
 	Id                   [16]byte
 	IsInternal           bool
