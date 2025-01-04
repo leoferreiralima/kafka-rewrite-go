@@ -24,7 +24,7 @@ func (e *InvalidDecodeError) Error() string {
 }
 
 type Decoder struct {
-	reader kafkaReader
+	reader *KafkaReader
 }
 
 type DecoderOpts struct {
@@ -45,7 +45,7 @@ type decoderFunc func(d *Decoder, opts *DecoderOpts, v *reflect.Value) error
 
 func NewDecoder(reader io.Reader) *Decoder {
 	return &Decoder{
-		reader: newKafkaReader(reader),
+		reader: NewKafkaReader(reader),
 	}
 }
 
@@ -73,16 +73,16 @@ func (d *Decoder) DecodeWithOpts(data any, opts *DecoderOpts) (err error) {
 
 func getDecoder(t reflect.Type) decoderFunc {
 	switch t.Kind() {
+	case reflect.Uint8:
+		return byteDecoder
 	case reflect.Int16:
 		return int16Decoder
 	case reflect.Int32:
 		return int32Decoder
-	case reflect.String:
-		return stringDecoder
 	case reflect.Uint32:
 		return uint32Decoder
-	case reflect.Uint8:
-		return byteDecoder
+	case reflect.String:
+		return stringDecoder
 	case reflect.Array:
 		return arrayDecoder
 	case reflect.Slice:
@@ -104,6 +104,17 @@ func cachedDecoder(t reflect.Type) decoderFunc {
 
 	f, _ := decodeFuncCache.LoadOrStore(k, getDecoder(t))
 	return f.(decoderFunc)
+}
+
+func byteDecoder(d *Decoder, _ *DecoderOpts, v *reflect.Value) (err error) {
+	var value byte
+
+	if value, err = d.reader.ReadByte(); err != nil {
+		return err
+	}
+
+	v.SetUint(uint64(value))
+	return nil
 }
 
 func int16Decoder(d *Decoder, _ *DecoderOpts, v *reflect.Value) (err error) {
@@ -132,17 +143,6 @@ func uint32Decoder(d *Decoder, _ *DecoderOpts, v *reflect.Value) (err error) {
 	var value uint32
 
 	if value, err = d.reader.ReadUint32(); err != nil {
-		return err
-	}
-
-	v.SetUint(uint64(value))
-	return nil
-}
-
-func byteDecoder(d *Decoder, _ *DecoderOpts, v *reflect.Value) (err error) {
-	var value byte
-
-	if value, err = d.reader.ReadByte(); err != nil {
 		return err
 	}
 

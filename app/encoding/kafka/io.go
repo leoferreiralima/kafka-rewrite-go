@@ -5,18 +5,19 @@ import (
 	"io"
 )
 
-type kafkaReader struct {
+type KafkaReader struct {
 	reader io.Reader
 }
 
-func newKafkaReader(reader io.Reader) kafkaReader {
-	return kafkaReader{reader}
+func NewKafkaReader(reader io.Reader) *KafkaReader {
+	return &KafkaReader{reader}
 }
-func (kr *kafkaReader) Read(p []byte) (n int, err error) {
+
+func (kr *KafkaReader) Read(p []byte) (n int, err error) {
 	return kr.reader.Read(p)
 }
 
-func (kr *kafkaReader) ReadUint8() (uint8, error) {
+func (kr *KafkaReader) ReadUint8() (uint8, error) {
 	var value uint8
 	err := binary.Read(kr, binary.BigEndian, &value)
 	if err != nil {
@@ -25,7 +26,7 @@ func (kr *kafkaReader) ReadUint8() (uint8, error) {
 	return value, nil
 }
 
-func (kr *kafkaReader) ReadInt16() (int16, error) {
+func (kr *KafkaReader) ReadInt16() (int16, error) {
 	var value int16
 	err := binary.Read(kr, binary.BigEndian, &value)
 	if err != nil {
@@ -34,7 +35,7 @@ func (kr *kafkaReader) ReadInt16() (int16, error) {
 	return value, nil
 }
 
-func (kr *kafkaReader) ReadUint32() (uint32, error) {
+func (kr *KafkaReader) ReadUint32() (uint32, error) {
 	var value uint32
 	err := binary.Read(kr, binary.BigEndian, &value)
 	if err != nil {
@@ -43,7 +44,7 @@ func (kr *kafkaReader) ReadUint32() (uint32, error) {
 	return value, nil
 }
 
-func (kr *kafkaReader) ReadInt32() (int32, error) {
+func (kr *KafkaReader) ReadInt32() (int32, error) {
 	var value int32
 	err := binary.Read(kr, binary.BigEndian, &value)
 	if err != nil {
@@ -52,17 +53,17 @@ func (kr *kafkaReader) ReadInt32() (int32, error) {
 	return value, nil
 }
 
-func (kr *kafkaReader) ReadByte() (byte, error) {
-	var tagBuffer byte
-	err := binary.Read(kr, binary.BigEndian, &tagBuffer)
+func (kr *KafkaReader) ReadByte() (byte, error) {
+	var value byte
+	err := binary.Read(kr, binary.BigEndian, &value)
 	if err != nil {
 		return 0, err
 	}
 
-	return tagBuffer, nil
+	return value, nil
 }
 
-func (kr *kafkaReader) ReadString(lenght int16) (string, error) {
+func (kr *KafkaReader) ReadString(lenght int16) (string, error) {
 	bytes := make([]byte, lenght)
 
 	if _, err := kr.Read(bytes); err != nil {
@@ -70,4 +71,56 @@ func (kr *kafkaReader) ReadString(lenght int16) (string, error) {
 	}
 
 	return string(bytes), nil
+}
+
+type KafkaWriter struct {
+	reader io.Writer
+}
+
+func NewKafkaWriter(reader io.Writer) KafkaWriter {
+	return KafkaWriter{reader}
+}
+
+func (kw *KafkaWriter) Write(p []byte) (n int, err error) {
+	return kw.reader.Write(p)
+}
+
+func (kw *KafkaWriter) WriteByte(value byte) error {
+	err := binary.Write(kw, binary.BigEndian, value)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (kw *KafkaWriter) WriteInt16(value int16) error {
+	err := binary.Write(kw, binary.BigEndian, value)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (kw *KafkaWriter) WriteInt32(value int32) error {
+	err := binary.Write(kw, binary.BigEndian, value)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (kw *KafkaWriter) WriteUint32(value uint32) error {
+	err := binary.Write(kw, binary.BigEndian, value)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (kw *KafkaWriter) WriteString(value string) error {
+	err := binary.Write(kw, binary.BigEndian, []byte(value))
+	if err != nil {
+		return err
+	}
+	return nil
 }
