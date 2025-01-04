@@ -23,10 +23,11 @@ type DescribeTopicPartitionsRequest struct {
 }
 
 type DescribeTopicPartitionsResponse struct {
-	ThrottleTimeMs int32                          `kafka:"0"`
-	Topics         []PartitionsTopicsResponseBody `kafka:"1,compact"`
-	NextCursor     *DescribeTopicPartitionsCursor `kafka:"2,nilable"`
-	TaggedFields   []protocol.TaggedField         `kafka:"3,compact,nilable"`
+	ResponseHeaderTaggedFields []protocol.TaggedField         `kafka:"0,compact,nilable"` // TODO fix this because this should be in header
+	ThrottleTimeMs             int32                          `kafka:"1"`
+	Topics                     []PartitionsTopicsResponseBody `kafka:"2,compact"`
+	NextCursor                 *DescribeTopicPartitionsCursor `kafka:"3,nilable"`
+	TaggedFields               []protocol.TaggedField         `kafka:"4,compact,nilable"`
 }
 
 func NewDescribeTopicPartitionsResponse() *DescribeTopicPartitionsResponse {
