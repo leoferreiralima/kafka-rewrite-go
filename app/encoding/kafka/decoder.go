@@ -3,7 +3,6 @@ package kafka
 import (
 	"io"
 	"reflect"
-	"sort"
 	"sync"
 )
 
@@ -187,12 +186,6 @@ func readStringLenght(d *Decoder, opts *DecoderOpts) (lenght int16, err error) {
 	return lenght, nil
 }
 
-type structField struct {
-	fieldIdx   int
-	tagOps     *tagOpts
-	decodeFunc decoderFunc
-}
-
 func structDecoder(d *Decoder, opts *DecoderOpts, v *reflect.Value) (err error) {
 	if opts.Nilable {
 		var nilableByte byte
@@ -217,69 +210,14 @@ func structDecoder(d *Decoder, opts *DecoderOpts, v *reflect.Value) (err error) 
 			continue
 		}
 		fv := v.Field(field.fieldIdx)
-		if err = field.decodeFunc(d, opts.withTagOps(field.tagOps), &fv); err != nil {
+		decoder := cachedDecoder(field.fieldType)
+
+		if err = decoder(d, opts.withTagOps(field.tagOps), &fv); err != nil {
 			return err
 		}
 	}
 
 	return nil
-}
-
-func typeFields(v *reflect.Value) (fields []structField, err error) {
-	t := v.Type()
-
-	for i := range t.NumField() {
-		field := t.Field(i)
-		val := v.Field(i)
-
-		if !field.IsExported() {
-			continue
-		}
-
-		if val.Kind() == reflect.Pointer {
-			val = val.Elem()
-		}
-
-		tag, found := field.Tag.Lookup("kafka")
-
-		if !found {
-			continue
-		}
-
-		var tagOpts tagOpts
-
-		if tagOpts, err = parseTag(tag); err != nil {
-			return fields, err
-		}
-
-		structField := new(structField)
-		structField.fieldIdx = i
-		structField.tagOps = &tagOpts
-		structField.decodeFunc = getDecoder(val.Type())
-
-		fields = append(fields, *structField)
-	}
-
-	sort.Slice(fields, func(i, j int) bool {
-		return fields[i].tagOps.order < fields[j].tagOps.order
-	})
-
-	return fields, nil
-}
-
-var fieldCache sync.Map // map[reflect.Type][]structField
-
-func cachedTypeFields(v *reflect.Value) ([]structField, error) {
-	t := v.Type()
-	if f, ok := fieldCache.Load(t); ok {
-		return f.([]structField), nil
-	}
-	fields, err := typeFields(v)
-	if err != nil {
-		return nil, err
-	}
-	f, _ := fieldCache.LoadOrStore(t, fields)
-	return f.([]structField), nil
 }
 
 func arrayDecoder(d *Decoder, opts *DecoderOpts, v *reflect.Value) (err error) {

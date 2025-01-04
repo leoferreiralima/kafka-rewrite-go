@@ -1,6 +1,8 @@
 package kafka
 
 import (
+	"errors"
+	"fmt"
 	"io"
 	"reflect"
 	"sync"
@@ -23,11 +25,10 @@ type Encoder struct {
 }
 
 type EncoderOpts struct {
-	Version      int
-	Compact      bool
-	Nilable      bool
-	ArrayCompact bool
-	ArrayNilable bool
+	Version int
+	Compact bool
+	Nilable bool
+	Raw     bool
 }
 
 func (e *EncoderOpts) withTagOps(tagOpts *tagOpts) *EncoderOpts {
@@ -35,8 +36,7 @@ func (e *EncoderOpts) withTagOps(tagOpts *tagOpts) *EncoderOpts {
 		e.Version,
 		tagOpts.compact,
 		tagOpts.nilable,
-		e.ArrayCompact,
-		e.ArrayNilable,
+		tagOpts.raw,
 	}
 }
 
@@ -77,6 +77,8 @@ func (e *Encoder) EncodeWithOpts(data any, opts *EncoderOpts) (err error) {
 
 func getEncoder(t reflect.Type) encoderFunc {
 	switch t.Kind() {
+	case reflect.Bool:
+		return boolEncoder
 	case reflect.Uint8:
 		return byteEncoder
 	case reflect.Int16:
@@ -89,25 +91,37 @@ func getEncoder(t reflect.Type) encoderFunc {
 		return stringEncoder
 	case reflect.Array, reflect.Slice:
 		return arrayEncoder
-	// case reflect.Slice:
-	// 	return sliceEncoder
-	// case reflect.Struct:
-	// 	return structEncoder
+	case reflect.Struct:
+		return structEncoder
 	default:
-		return nil
+		fmt.Println(t.Kind())
+		panic("type not supported on encoder")
 	}
 }
 
 var encodeFuncCache sync.Map // map[reflect.Kind][]encodeFunc
 
 func cachedEncoder(t reflect.Type) encoderFunc {
-	k := t.Kind()
+	k := realType(t).Kind()
 	if f, ok := encodeFuncCache.Load(k); ok {
 		return f.(encoderFunc)
 	}
 
 	f, _ := encodeFuncCache.LoadOrStore(k, getEncoder(t))
 	return f.(encoderFunc)
+}
+
+func boolEncoder(e *Encoder, _ *EncoderOpts, v *reflect.Value) (err error) {
+	value := byte(0)
+	if v.Bool() {
+		value = 1
+	}
+
+	if err = e.writer.WriteByte(value); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func byteEncoder(e *Encoder, _ *EncoderOpts, v *reflect.Value) (err error) {
@@ -185,28 +199,15 @@ func stringEncoder(e *Encoder, opts *EncoderOpts, v *reflect.Value) (err error) 
 }
 
 func arrayEncoder(e *Encoder, opts *EncoderOpts, v *reflect.Value) (err error) {
-	lenght := v.Len()
-
-	switch {
-	case lenght == 0 && opts.ArrayNilable && opts.ArrayCompact:
-		if err = e.writer.WriteByte(byte(0)); err != nil {
-			return err
-		}
-	case lenght == 0 && opts.ArrayNilable:
-		if err = e.writer.WriteInt32(-1); err != nil {
-			return err
-		}
-	case opts.ArrayCompact:
-		if err = e.writer.WriteByte(byte(lenght + 1)); err != nil {
-			return err
-		}
-	default:
-		if err = e.writer.WriteInt32(int32(lenght)); err != nil {
-			return err
+	if !opts.Raw {
+		if err = arrayLengthEncoder(e, opts, v); err != nil {
+			return nil
 		}
 	}
 
-	if lenght == 0 {
+	lenght := v.Len()
+
+	if v.Len() == 0 {
 		return nil
 	}
 
@@ -223,137 +224,66 @@ func arrayEncoder(e *Encoder, opts *EncoderOpts, v *reflect.Value) (err error) {
 	return nil
 }
 
-// func sliceEncoder(e *Encoder, opts *EncoderOpts, v *reflect.Value) (err error) {
-// 	lenght := v.Len()
+func arrayLengthEncoder(e *Encoder, opts *EncoderOpts, v *reflect.Value) (err error) {
+	lenght := v.Len()
 
-// 	switch {
-// 	case lenght == 0 && opts.ArrayNilable && opts.ArrayCompact:
-// 		if err = e.writer.WriteByte(byte(0)); err != nil {
-// 			return err
-// 		}
-// 	case lenght == 0 && opts.ArrayNilable:
-// 		if err = e.writer.WriteInt32(-1); err != nil {
-// 			return err
-// 		}
-// 	case opts.ArrayCompact:
-// 		if err = e.writer.WriteByte(byte(lenght + 1)); err != nil {
-// 			return err
-// 		}
-// 	default:
-// 		if err = e.writer.WriteInt32(int32(lenght)); err != nil {
-// 			return err
-// 		}
-// 	}
+	switch {
+	case lenght == 0 && opts.Nilable && opts.Compact:
+		if err = e.writer.WriteByte(byte(0)); err != nil {
+			return err
+		}
+	case lenght == 0 && opts.Nilable:
+		if err = e.writer.WriteInt32(-1); err != nil {
+			return err
+		}
+	case opts.Compact:
+		if err = e.writer.WriteByte(byte(lenght + 1)); err != nil {
+			return err
+		}
+	default:
+		if err = e.writer.WriteInt32(int32(lenght)); err != nil {
+			return err
+		}
+	}
 
-// 	if lenght == 0 {
-// 		return nil
-// 	}
+	return nil
+}
 
-// 	elemType := v.Type().Elem()
-// 	for range lenght {
-// 		elemValue := reflect.New(elemType).Elem()
+var ErrNonNilableStruct = errors.New("nil struct without nilable opt, should be `kafka:\"orderNumberHere,nilable\"`")
 
-// 		elemEncoder := cachedEncoder(elem.Type())
+func structEncoder(e *Encoder, opts *EncoderOpts, v *reflect.Value) (err error) {
+	if v.Kind() == reflect.Pointer {
+		if v.IsNil() {
+			if opts.Nilable {
+				if err = e.writer.WriteByte(0xff); err != nil {
+					return err
+				}
 
-// 		if err = elemEncoder(e, opts, &elem); err != nil {
-// 			return err
-// 		}
-// 	}
+				return nil
+			}
 
-// 	return nil
-// }
+			return ErrNonNilableStruct
+		}
 
-// type structField struct {
-// 	fieldIdx   int
-// 	tagOps     *tagOpts
-// 	encodeFunc encoderFunc
-// }
+	}
 
-// func structEncoder(e *Encoder, opts *EncoderOpts, v *reflect.Value) (err error) {
-// 	if opts.Nilable {
-// 		var nilableByte byte
+	fields, err := cachedTypeFields(v)
 
-// 		if nilableByte, err = e.writer.WriteByte(value); err != nil {
-// 			return err
-// 		}
+	if err != nil {
+		return err
+	}
 
-// 		if nilableByte == 0xff {
-// 			return nil
-// 		}
-// 	}
+	for _, field := range fields {
+		if field.tagOps.minVersion > opts.Version {
+			continue
+		}
+		fv := v.Field(field.fieldIdx)
+		encoder := cachedEncoder(field.fieldType)
 
-// 	fields, err := cachedTypeFields(v)
+		if err = encoder(e, opts.withTagOps(field.tagOps), &fv); err != nil {
+			return err
+		}
+	}
 
-// 	if err != nil {
-// 		return err
-// 	}
-
-// 	for _, field := range fields {
-// 		if field.tagOps.minVersion > opts.Version {
-// 			continue
-// 		}
-// 		fv := v.Field(field.fieldIdx)
-// 		if err = field.encodeFunc(d, opts.withTagOps(field.tagOps), &fv); err != nil {
-// 			return err
-// 		}
-// 	}
-
-// 	return nil
-// }
-
-// func typeFields(v *reflect.Value) (fields []structField, err error) {
-// 	t := v.Type()
-
-// 	for i := range t.NumField() {
-// 		field := t.Field(i)
-// 		val := v.Field(i)
-
-// 		if !field.IsExported() {
-// 			continue
-// 		}
-
-// 		if val.Kind() == reflect.Pointer {
-// 			val = val.Elem()
-// 		}
-
-// 		tag, found := field.Tag.Lookup("kafka")
-
-// 		if !found {
-// 			continue
-// 		}
-
-// 		var tagOpts tagOpts
-
-// 		if tagOpts, err = parseTag(tag); err != nil {
-// 			return fields, err
-// 		}
-
-// 		structField := new(structField)
-// 		structField.fieldIdx = i
-// 		structField.tagOps = &tagOpts
-// 		structField.encodeFunc = getEncoder(val.Type())
-
-// 		fields = append(fields, *structField)
-// 	}
-
-// 	sort.Slice(fields, func(i, j int) bool {
-// 		return fields[i].tagOps.order < fields[j].tagOps.order
-// 	})
-
-// 	return fields, nil
-// }
-
-// var fieldCache sync.Map // map[reflect.Type][]structField
-
-// func cachedTypeFields(v *reflect.Value) ([]structField, error) {
-// 	t := v.Type()
-// 	if f, ok := fieldCache.Load(t); ok {
-// 		return f.([]structField), nil
-// 	}
-// 	fields, err := typeFields(v)
-// 	if err != nil {
-// 		return nil, err
-// 	}
-// 	f, _ := fieldCache.LoadOrStore(t, fields)
-// 	return f.([]structField), nil
-// }
+	return nil
+}

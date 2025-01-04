@@ -3,6 +3,7 @@ package kafka_test
 import (
 	"bytes"
 	"fmt"
+	"reflect"
 	"slices"
 	"testing"
 
@@ -321,7 +322,7 @@ func TestEncodeEmptyNilableArray(t *testing.T) {
 
 	var err error
 	if err = kafka.NewEncoder(buffer).EncodeWithOpts(expected, &kafka.EncoderOpts{
-		ArrayNilable: true,
+		Nilable: true,
 	}); err != nil {
 		t.Fatalf("unexpected encode error: %s", err)
 	}
@@ -344,7 +345,7 @@ func TestEncodeEmptyCompactArray(t *testing.T) {
 
 	var err error
 	if err = kafka.NewEncoder(buffer).EncodeWithOpts(expected, &kafka.EncoderOpts{
-		ArrayCompact: true,
+		Compact: true,
 	}); err != nil {
 		t.Fatalf("unexpected encode error: %s", err)
 	}
@@ -367,8 +368,8 @@ func TestEncodeEmptyNilableCompactArray(t *testing.T) {
 
 	var err error
 	if err = kafka.NewEncoder(buffer).EncodeWithOpts(expected, &kafka.EncoderOpts{
-		ArrayCompact: true,
-		ArrayNilable: true,
+		Compact: true,
+		Nilable: true,
 	}); err != nil {
 		t.Fatalf("unexpected encode error: %s", err)
 	}
@@ -426,7 +427,7 @@ func TestEncodeInt32CompactArray(t *testing.T) {
 
 	var err error
 	if err = kafka.NewEncoder(buffer).EncodeWithOpts(expected, &kafka.EncoderOpts{
-		ArrayCompact: true,
+		Compact: true,
 	}); err != nil {
 		t.Fatalf("unexpected encode error: %s", err)
 	}
@@ -482,7 +483,7 @@ func TestEncodeEmptyNilableSlice(t *testing.T) {
 
 	var err error
 	if err = kafka.NewEncoder(buffer).EncodeWithOpts(expected, &kafka.EncoderOpts{
-		ArrayNilable: true,
+		Nilable: true,
 	}); err != nil {
 		t.Fatalf("unexpected encode error: %s", err)
 	}
@@ -505,7 +506,7 @@ func TestEncodeEmptyCompactSlice(t *testing.T) {
 
 	var err error
 	if err = kafka.NewEncoder(buffer).EncodeWithOpts(expected, &kafka.EncoderOpts{
-		ArrayCompact: true,
+		Compact: true,
 	}); err != nil {
 		t.Fatalf("unexpected encode error: %s", err)
 	}
@@ -528,8 +529,8 @@ func TestEncodeEmptyNilableCompactSlice(t *testing.T) {
 
 	var err error
 	if err = kafka.NewEncoder(buffer).EncodeWithOpts(expected, &kafka.EncoderOpts{
-		ArrayCompact: true,
-		ArrayNilable: true,
+		Compact: true,
+		Nilable: true,
 	}); err != nil {
 		t.Fatalf("unexpected encode error: %s", err)
 	}
@@ -590,7 +591,7 @@ func TestEncodeInt32CompactSlice(t *testing.T) {
 
 	var err error
 	if err = kafka.NewEncoder(buffer).EncodeWithOpts(expected, &kafka.EncoderOpts{
-		ArrayCompact: true,
+		Compact: true,
 	}); err != nil {
 		t.Fatalf("unexpected encode error: %s", err)
 	}
@@ -617,6 +618,43 @@ func TestEncodeInt32CompactSlice(t *testing.T) {
 	}
 
 	if !slices.Equal(expected, result) {
+		t.Fatalf("expected: %s, result: %s", fmt.Sprint(expected), fmt.Sprint(result))
+	}
+}
+
+func TestEncodeStruct(t *testing.T) {
+	type ds struct {
+		Byte          byte   `kafka:"0"`
+		CompactString string `kafka:"1,compact"`
+		Inner         struct {
+			Int32      int32   `kafka:"0"`
+			Int16Slice []int16 `kafka:"1"`
+			ByteArray  [2]byte `kafka:"2,compact"`
+		} `kafka:"2"`
+	}
+
+	expected := ds{
+		Byte:          10,
+		CompactString: "CompcatString",
+	}
+	expected.Inner.Int32 = 1000
+	expected.Inner.Int16Slice = []int16{1, 2, 3}
+	expected.Inner.ByteArray = [2]byte{3, 4}
+
+	buffer := new(bytes.Buffer)
+
+	var err error
+	if err = kafka.NewEncoder(buffer).Encode(expected); err != nil {
+		t.Fatalf("unexpected encode error: %s", err)
+	}
+
+	result := ds{}
+
+	if err = kafka.NewDecoder(buffer).Decode(&result); err != nil {
+		t.Fatalf("unexpected read length error: %s", err)
+	}
+
+	if !reflect.DeepEqual(expected, result) {
 		t.Fatalf("expected: %s, result: %s", fmt.Sprint(expected), fmt.Sprint(result))
 	}
 }

@@ -109,7 +109,7 @@ func apiVersionsHandler(request *server.Request, response *server.Response) (err
 		responseBody.ApiKeys = append(responseBody.ApiKeys, apiKey)
 	}
 
-	return responseBody.Write(response.Body)
+	return kafka.NewEncoder(response.Body).Encode(responseBody)
 }
 
 func describeTopicPartitionsHandler(request *server.Request, response *server.Response) (err error) {
@@ -122,10 +122,10 @@ func describeTopicPartitionsHandler(request *server.Request, response *server.Re
 
 	fmt.Printf("Topics: %s\nResponsePartionLimit: %d\n", fmt.Sprint(requestData.Topics), requestData.ResponsePartionLimit)
 
-	responseBody := apis.NewDescribeTopicPartitionsResponseBody()
+	responseBody := apis.NewDescribeTopicPartitionsResponse()
 
 	for _, topic := range requestData.Topics {
-		topicResponse := &apis.PartitionsTopicsResponseBody{
+		topicResponse := apis.PartitionsTopicsResponseBody{
 			ErrorCode:            apis.UnknownTopic,
 			Name:                 topic.Name,
 			IsInternal:           false,
@@ -135,7 +135,5 @@ func describeTopicPartitionsHandler(request *server.Request, response *server.Re
 		responseBody.Topics = append(responseBody.Topics, topicResponse)
 	}
 
-	responseBody.Write(response.Body)
-
-	return nil
+	return kafka.NewEncoder(response.Body).Encode(responseBody)
 }

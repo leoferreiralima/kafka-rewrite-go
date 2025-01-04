@@ -11,6 +11,7 @@ type tagOpts struct {
 	minVersion int
 	compact    bool
 	nilable    bool
+	raw        bool
 }
 
 var ErrMinVersionInvalid = errors.New("min version is invalid should be `kafka:\"orderNumberHere,minVersion=versionNumberHere\"` ")
@@ -37,6 +38,8 @@ func parseTag(tag string) (tagOpts tagOpts, err error) {
 			tagOpts.compact = true
 		case "nilable":
 			tagOpts.nilable = true
+		case "raw":
+			tagOpts.raw = true
 		}
 
 	}

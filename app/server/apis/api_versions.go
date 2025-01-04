@@ -1,11 +1,9 @@
 package apis
 
 import (
-	"io"
 	"sync"
 
 	"github.com/codecrafters-io/kafka-starter-go/app/protocol"
-	"github.com/codecrafters-io/kafka-starter-go/app/support"
 )
 
 type ApiVersionsRequest struct {
@@ -14,73 +12,73 @@ type ApiVersionsRequest struct {
 	TaggedFields  []protocol.TaggedField `kafka:"2,compact"`
 }
 
-type ApiVersionsResponseBody struct {
-	ErrorCode      ErrorCode
-	ApiKeys        []ApiKeyVersion
-	ThrottleTimeMs int32
-	TagBuffer      byte
+type ApiVersionsResponse struct {
+	ErrorCode      ErrorCode              `kafka:"0"`
+	ApiKeys        []ApiKeyVersion        `kafka:"1,compact"`
+	ThrottleTimeMs int32                  `kafka:"2"`
+	TaggedFields   []protocol.TaggedField `kafka:"3,compact,nilable"`
 }
 
-func NewApiVersionsResponseBody() *ApiVersionsResponseBody {
-	return &ApiVersionsResponseBody{
+func NewApiVersionsResponseBody() *ApiVersionsResponse {
+	return &ApiVersionsResponse{
 		ThrottleTimeMs: 0,
 	}
 }
 
-func (r *ApiVersionsResponseBody) Write(writer io.Writer) error {
+// func (r *ApiVersionsResponse) Write(writer io.Writer) error {
 
-	if err := support.WriteInt16(writer, int16(r.ErrorCode)); err != nil {
-		return err
-	}
+// 	if err := support.WriteInt16(writer, int16(r.ErrorCode)); err != nil {
+// 		return err
+// 	}
 
-	if err := support.WriteInt8(writer, int8(len(r.ApiKeys)+1)); err != nil {
-		return nil
-	}
+// 	if err := support.WriteInt8(writer, int8(len(r.ApiKeys)+1)); err != nil {
+// 		return nil
+// 	}
 
-	for _, apiKey := range r.ApiKeys {
-		if err := apiKey.Write(writer); err != nil {
-			return err
-		}
-	}
+// 	for _, apiKey := range r.ApiKeys {
+// 		if err := apiKey.Write(writer); err != nil {
+// 			return err
+// 		}
+// 	}
 
-	if err := support.WriteInt32(writer, r.ThrottleTimeMs); err != nil {
-		return err
-	}
+// 	if err := support.WriteInt32(writer, r.ThrottleTimeMs); err != nil {
+// 		return err
+// 	}
 
-	if err := support.WriteByte(writer, r.TagBuffer); err != nil {
-		return nil
-	}
+// 	if err := support.WriteByte(writer, r.TagBuffer); err != nil {
+// 		return nil
+// 	}
 
-	return nil
-}
+// 	return nil
+// }
 
 type ApiKeyVersion struct {
-	Key        ApiKey
-	MinVersion int16
-	MaxVersion int16
-	TagBuffer  byte
+	Key          ApiKey                 `kafka:"0"`
+	MinVersion   int16                  `kafka:"1"`
+	MaxVersion   int16                  `kafka:"2"`
+	TaggedFields []protocol.TaggedField `kafka:"3,compact,nilable"`
 }
 
-func (a *ApiKeyVersion) Write(writer io.Writer) error {
+// func (a *ApiKeyVersion) Write(writer io.Writer) error {
 
-	if err := support.WriteInt16(writer, int16(a.Key)); err != nil {
-		return err
-	}
+// 	if err := support.WriteInt16(writer, int16(a.Key)); err != nil {
+// 		return err
+// 	}
 
-	if err := support.WriteInt16(writer, a.MinVersion); err != nil {
-		return err
-	}
+// 	if err := support.WriteInt16(writer, a.MinVersion); err != nil {
+// 		return err
+// 	}
 
-	if err := support.WriteInt16(writer, a.MaxVersion); err != nil {
-		return err
-	}
+// 	if err := support.WriteInt16(writer, a.MaxVersion); err != nil {
+// 		return err
+// 	}
 
-	if err := support.WriteByte(writer, a.TagBuffer); err != nil {
-		return nil
-	}
+// 	if err := support.WriteByte(writer, a.TagBuffer); err != nil {
+// 		return nil
+// 	}
 
-	return nil
-}
+// 	return nil
+// }
 
 var supportedApiVersions map[ApiKey]ApiKeyVersion
 
