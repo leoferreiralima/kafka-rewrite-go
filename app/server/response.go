@@ -1,40 +1,39 @@
 package server
 
 import (
-	"bytes"
 	"io"
 
-	"github.com/codecrafters-io/kafka-starter-go/app/support"
+	"github.com/codecrafters-io/kafka-starter-go/app/protocol"
 )
 
-type Response struct {
-	MessageSize   int32
-	CorrelationId int32
-	Body          *bytes.Buffer
-	TagBuffer     byte
+type ResponseWriter interface {
+	Write(p []byte) (n int, err error)
 }
 
-func NewResponse() Response {
-	return Response{
-		MessageSize: 0,
-		Body:        new(bytes.Buffer),
-	}
+type responseHeader struct {
+	CorrelationId int32                  `kafka:"0"`
+	TaggedFields  []protocol.TaggedField `kafka:"1,minVersion=1,compact,nilable"`
 }
 
-func (r *Response) Write(writer io.Writer) (err error) {
-	r.MessageSize = int32(r.Body.Len()) + 4
+type response struct {
+	header  responseHeader
+	writer  io.Writer
+	written int
+}
 
-	if err = support.WriteInt32(writer, r.MessageSize); err != nil {
-		return err
+func NewResponseWriter(writer io.Writer) ResponseWriter {
+	response := &response{
+		writer: writer,
 	}
 
-	if err = support.WriteInt32(writer, r.CorrelationId); err != nil {
-		return err
-	}
+	return response
+}
 
-	if _, err = writer.Write(r.Body.Bytes()); err != nil {
-		return err
-	}
+func (r *response) Write(p []byte) (n int, err error) {
+	r.written += len(p)
+	return r.writer.Write(p)
+}
 
-	return nil
+func (r *response) messageSize() int32 {
+	return int32(r.written)
 }

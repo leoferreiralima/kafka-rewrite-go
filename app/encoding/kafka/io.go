@@ -74,15 +74,15 @@ func (kr *KafkaReader) ReadString(lenght int16) (string, error) {
 }
 
 type KafkaWriter struct {
-	reader io.Writer
+	writer io.Writer
 }
 
-func NewKafkaWriter(reader io.Writer) KafkaWriter {
-	return KafkaWriter{reader}
+func NewKafkaWriter(writer io.Writer) KafkaWriter {
+	return KafkaWriter{writer}
 }
 
 func (kw *KafkaWriter) Write(p []byte) (n int, err error) {
-	return kw.reader.Write(p)
+	return kw.writer.Write(p)
 }
 
 func (kw *KafkaWriter) WriteByte(value byte) error {

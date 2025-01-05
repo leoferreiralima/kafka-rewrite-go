@@ -9,7 +9,7 @@ import (
 type DescribeTopicPartitionsCursor struct {
 	Topic          string                 `kafka:"0"`
 	PartitionIndex int32                  `kafka:"1"`
-	TaggedFields   []protocol.TaggedField `kafka:"2,compact"`
+	TaggedFields   []protocol.TaggedField `kafka:"2,compact,nilable"`
 }
 
 type DescribeTopicPartitionsRequest struct {
@@ -19,15 +19,14 @@ type DescribeTopicPartitionsRequest struct {
 	} `kafka:"0,compact"`
 	ResponsePartionLimit int32                          `kafka:"1"`
 	Cursor               *DescribeTopicPartitionsCursor `kafka:"2,nilable"`
-	TaggedFields         []protocol.TaggedField         `kafka:"3,compact"`
+	TaggedFields         []protocol.TaggedField         `kafka:"3,compact,nilable"`
 }
 
 type DescribeTopicPartitionsResponse struct {
-	ResponseHeaderTaggedFields []protocol.TaggedField         `kafka:"0,compact,nilable"` // TODO fix this because this should be in header
-	ThrottleTimeMs             int32                          `kafka:"1"`
-	Topics                     []PartitionsTopicsResponseBody `kafka:"2,compact"`
-	NextCursor                 *DescribeTopicPartitionsCursor `kafka:"3,nilable"`
-	TaggedFields               []protocol.TaggedField         `kafka:"4,compact,nilable"`
+	ThrottleTimeMs int32                          `kafka:"1"`
+	Topics         []PartitionsTopicsResponseBody `kafka:"2,compact"`
+	NextCursor     *DescribeTopicPartitionsCursor `kafka:"3,nilable"`
+	TaggedFields   []protocol.TaggedField         `kafka:"4,compact,nilable"`
 }
 
 func NewDescribeTopicPartitionsResponse() *DescribeTopicPartitionsResponse {
