@@ -6,21 +6,20 @@ import (
 	"io"
 
 	"github.com/codecrafters-io/kafka-starter-go/app/encoding/kafka"
-	"github.com/codecrafters-io/kafka-starter-go/app/protocol"
-	"github.com/codecrafters-io/kafka-starter-go/app/server/apis"
+	"github.com/codecrafters-io/kafka-starter-go/app/handlers"
 )
 
 type RequestHeaders struct {
 	CorrelationId int32                  `kafka:"0,minVersion=0"`
 	ClientId      string                 `kafka:"1,minVersion=1"`
-	TaggedFields  []protocol.TaggedField `kafka:"2,minVersion=2,compact"`
+	TaggedFields  []handlers.TaggedField `kafka:"2,minVersion=2,compact"`
 }
 
 type Request struct {
 	MessageSize int32
 	ApiVersion  struct {
-		Key     apis.ApiKey `kafka:"0"`
-		Version int16       `kafka:"1"`
+		Key     handlers.ApiKey `kafka:"0"`
+		Version int16           `kafka:"1"`
 	}
 	Headers RequestHeaders
 	Body    io.Reader

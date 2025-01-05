@@ -3,7 +3,7 @@ package server
 import (
 	"io"
 
-	"github.com/codecrafters-io/kafka-starter-go/app/protocol"
+	"github.com/codecrafters-io/kafka-starter-go/app/handlers"
 )
 
 type ResponseWriter interface {
@@ -12,7 +12,7 @@ type ResponseWriter interface {
 
 type responseHeader struct {
 	CorrelationId int32                  `kafka:"0"`
-	TaggedFields  []protocol.TaggedField `kafka:"1,minVersion=1,compact,nilable"`
+	TaggedFields  []handlers.TaggedField `kafka:"1,minVersion=1,compact,nilable"`
 }
 
 type response struct {
