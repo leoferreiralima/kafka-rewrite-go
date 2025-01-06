@@ -62,7 +62,7 @@ func DescribeTopicPartitionsHandler(responseWriter server.ResponseWriter, reques
 
 	for _, topic := range requestData.Topics {
 		topicResponse := PartitionsTopicsResponseBody{
-			ErrorCode:            UnknownTopic,
+			ErrorCode:            server.UnknownTopic,
 			Name:                 topic.Name,
 			IsInternal:           false,
 			AuthorizedOperations: 0b0000_1101_1111_1000,

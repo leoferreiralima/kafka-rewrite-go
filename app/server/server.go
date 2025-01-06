@@ -14,25 +14,25 @@ import (
 
 type HandlerFunc func(ResponseWriter, *Request) error
 
-type HandlerRequestOpts struct {
-	Version int
+type handlerRequestOpts struct {
+	version int
 }
 
-type HandlerResponseOpts struct {
-	Version int
+type handlerResponseOpts struct {
+	version int
 }
 
-type HandlerOpts struct {
-	Request  HandlerRequestOpts
-	Response HandlerResponseOpts
+type handlerOpts struct {
+	request  handlerRequestOpts
+	response handlerResponseOpts
 }
 
 type handlerState struct {
-	opts        HandlerOpts
+	opts        handlerOpts
 	handlerFunc HandlerFunc
 }
 
-type KafkaApiKey struct {
+type KafkaApiId struct {
 	ApiKey     ApiKey
 	MinVersion ApiVersion
 	MaxVersion ApiVersion
@@ -41,13 +41,13 @@ type KafkaApiKey struct {
 type KafkaServer struct {
 	mutex    sync.RWMutex
 	logger   *log.Logger
-	handlers map[KafkaApiKey]handlerState
+	handlers map[KafkaApiId]handlerState
 }
 
 func NewKafkaServer() *KafkaServer {
 	return &KafkaServer{
 		logger:   log.New(os.Stdout, "kafka-server:", log.LstdFlags|log.LUTC|log.Lmsgprefix|log.Lshortfile),
-		handlers: make(map[KafkaApiKey]handlerState),
+		handlers: make(map[KafkaApiId]handlerState),
 	}
 }
 
@@ -57,12 +57,12 @@ func (ks *KafkaServer) Handler(apiKey ApiKey) *handlerBuilder {
 		apiKey:     apiKey,
 		minVersion: -1,
 		maxVersion: -1,
-		opts: HandlerOpts{
-			HandlerRequestOpts{
-				Version: 2,
+		opts: handlerOpts{
+			handlerRequestOpts{
+				version: 2,
 			},
-			HandlerResponseOpts{
-				Version: 0,
+			handlerResponseOpts{
+				version: 0,
 			},
 		},
 		handlerFunc: nil,
@@ -70,9 +70,9 @@ func (ks *KafkaServer) Handler(apiKey ApiKey) *handlerBuilder {
 }
 
 func (ks *KafkaServer) handlerFunc(
-	apiKey KafkaApiKey,
+	apiKey KafkaApiId,
 	handler HandlerFunc,
-	opts HandlerOpts,
+	opts handlerOpts,
 ) {
 	ks.mutex.Lock()
 	defer ks.mutex.Unlock()
@@ -137,7 +137,7 @@ func (ks *KafkaServer) handleRequest(res *response, req *Request) {
 	opts := handlerState.opts
 	handler := handlerState.handlerFunc
 
-	if err := ks.writeResponseHeaders(res, int(opts.Response.Version)); err != nil {
+	if err := ks.writeResponseHeaders(res, int(opts.response.version)); err != nil {
 		ks.logger.Printf("Couldn't encode response headers: %s\n%v", fmt.Sprint(res.headers), err)
 		ks.handleError(res, UnknownServerError)
 	}
@@ -169,7 +169,7 @@ func (ks *KafkaServer) handleError(res *response, errorCode ErrorCode) {
 	handlerState, found := ks.findHandler(res.req)
 	version := 0
 	if found {
-		version = int(handlerState.opts.Response.Version)
+		version = int(handlerState.opts.response.version)
 	}
 
 	if err := ks.writeResponseHeaders(res, version); err != nil { // TODO fix version here
@@ -270,7 +270,7 @@ type handlerBuilder struct {
 	apiKey      ApiKey
 	minVersion  ApiVersion
 	maxVersion  ApiVersion
-	opts        HandlerOpts
+	opts        handlerOpts
 	handlerFunc HandlerFunc
 }
 
@@ -283,13 +283,15 @@ func (hb *handlerBuilder) Version(minVersion ApiVersion, maxVersion ApiVersion) 
 func (hb *handlerBuilder) Opts() *handlerOptsBuilder {
 	return &handlerOptsBuilder{
 		handlerBuilder: hb,
-		requestOpts:    hb.opts.Request,
-		responseOpts:   hb.opts.Response,
+		requestOpts:    hb.opts.request,
+		responseOpts:   hb.opts.response,
 	}
 }
 
 func (hb *handlerBuilder) Add(handlerFunc HandlerFunc) {
-	apiKey := KafkaApiKey{
+	// TODO validate if all values is setted correctly
+
+	apiKey := KafkaApiId{
 		ApiKey:     hb.apiKey,
 		MinVersion: hb.minVersion,
 		MaxVersion: hb.maxVersion,
@@ -299,22 +301,22 @@ func (hb *handlerBuilder) Add(handlerFunc HandlerFunc) {
 
 type handlerOptsBuilder struct {
 	handlerBuilder *handlerBuilder
-	requestOpts    HandlerRequestOpts
-	responseOpts   HandlerResponseOpts
+	requestOpts    handlerRequestOpts
+	responseOpts   handlerResponseOpts
 }
 
 func (ob *handlerOptsBuilder) RequestHeaderVersion(version int) *handlerOptsBuilder {
-	ob.requestOpts.Version = version
+	ob.requestOpts.version = version
 	return ob
 }
 
 func (ob *handlerOptsBuilder) ResponseHeaderVersion(version int) *handlerOptsBuilder {
-	ob.responseOpts.Version = version
+	ob.responseOpts.version = version
 	return ob
 }
 
 func (ob *handlerOptsBuilder) And() *handlerBuilder {
-	ob.handlerBuilder.opts.Request = ob.requestOpts
-	ob.handlerBuilder.opts.Response = ob.responseOpts
+	ob.handlerBuilder.opts.request = ob.requestOpts
+	ob.handlerBuilder.opts.response = ob.responseOpts
 	return ob.handlerBuilder
 }

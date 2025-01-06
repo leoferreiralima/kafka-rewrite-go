@@ -61,14 +61,14 @@ var supportedApiVersionsOnce sync.Once
 func initSupportedApiVersions() {
 	supportedApiVersions = make(map[server.ApiKey]ApiKeyVersion)
 
-	supportedApiVersions[ApiVersions] = ApiKeyVersion{
-		Key:        ApiVersions,
+	supportedApiVersions[server.ApiVersions] = ApiKeyVersion{
+		Key:        server.ApiVersions,
 		MinVersion: 0,
 		MaxVersion: 4,
 	}
 
-	supportedApiVersions[DescribeTopicPartitions] = ApiKeyVersion{
-		Key:        DescribeTopicPartitions,
+	supportedApiVersions[server.DescribeTopicPartitions] = ApiKeyVersion{
+		Key:        server.DescribeTopicPartitions,
 		MinVersion: 0,
 		MaxVersion: 0,
 	}
