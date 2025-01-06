@@ -44,7 +44,7 @@ func ParseRequest(reader io.Reader) (request *Request, err error) {
 	}
 
 	if err = decoder.DecodeWithOpts(&request.Headers, &kafka.DecoderOpts{
-		Version: 2,
+		Version: 2, // TODO get correctly version Here
 	}); err != nil {
 		return nil, err
 	}

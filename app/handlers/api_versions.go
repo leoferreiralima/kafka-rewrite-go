@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"fmt"
-	"sync"
 
 	"github.com/codecrafters-io/kafka-starter-go/app/encoding/kafka"
 	"github.com/codecrafters-io/kafka-starter-go/app/server"
@@ -21,16 +20,10 @@ type ApiVersionsResponse struct {
 	TaggedFields   []server.TaggedField `kafka:"3,compact,nilable"`
 }
 
-func NewApiVersionsResponseBody() *ApiVersionsResponse {
-	return &ApiVersionsResponse{
-		ThrottleTimeMs: 0,
-	}
-}
-
 type ApiKeyVersion struct {
 	Key          server.ApiKey        `kafka:"0"`
-	MinVersion   int16                `kafka:"1"`
-	MaxVersion   int16                `kafka:"2"`
+	MinVersion   server.ApiVersion    `kafka:"1"`
+	MaxVersion   server.ApiVersion    `kafka:"2"`
 	TaggedFields []server.TaggedField `kafka:"3,compact,nilable"`
 }
 
@@ -43,52 +36,19 @@ func ApiVersionsHandler(responseWriter server.ResponseWriter, request *server.Re
 
 	fmt.Printf("ClientName: %s, ClientVersion: %s\n", requestData.ClientId, requestData.ClientVersion)
 
-	responseBody := NewApiVersionsResponseBody()
+	responseBody := &ApiVersionsResponse{
+		ThrottleTimeMs: 0,
+	}
 
-	supportedApiKeys := GetSupportedApiVersions()
+	supportedApis := server.GetSupportedApis()
 
-	for _, apiKey := range supportedApiKeys {
-		responseBody.ApiKeys = append(responseBody.ApiKeys, apiKey)
+	for apiKey, rangeVersion := range supportedApis {
+		responseBody.ApiKeys = append(responseBody.ApiKeys, ApiKeyVersion{
+			Key:        apiKey,
+			MinVersion: rangeVersion.Min,
+			MaxVersion: rangeVersion.Max,
+		})
 	}
 
 	return kafka.NewEncoder(responseWriter).Encode(responseBody)
-}
-
-var supportedApiVersions map[server.ApiKey]ApiKeyVersion
-
-var supportedApiVersionsOnce sync.Once
-
-func initSupportedApiVersions() {
-	supportedApiVersions = make(map[server.ApiKey]ApiKeyVersion)
-
-	supportedApiVersions[server.ApiVersions] = ApiKeyVersion{
-		Key:        server.ApiVersions,
-		MinVersion: 0,
-		MaxVersion: 4,
-	}
-
-	supportedApiVersions[server.DescribeTopicPartitions] = ApiKeyVersion{
-		Key:        server.DescribeTopicPartitions,
-		MinVersion: 0,
-		MaxVersion: 0,
-	}
-}
-
-func GetSupportedApiVersions() map[server.ApiKey]ApiKeyVersion {
-	supportedApiVersionsOnce.Do(initSupportedApiVersions)
-	return supportedApiVersions
-}
-
-func IsVersionSupported(apiKey server.ApiKey, version int16) bool {
-	apiKeyVersion, exists := GetSupportedApiVersions()[apiKey]
-
-	if !exists {
-		return false
-	}
-
-	if version < apiKeyVersion.MinVersion || version > apiKeyVersion.MaxVersion {
-		return false
-	}
-
-	return true
 }

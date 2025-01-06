@@ -28,35 +28,60 @@ type handlerOpts struct {
 }
 
 type handlerState struct {
-	opts        handlerOpts
-	handlerFunc HandlerFunc
-}
-
-type KafkaApiId struct {
-	ApiKey     ApiKey
-	MinVersion ApiVersion
-	MaxVersion ApiVersion
+	versionRange ApiVersionRange
+	opts         handlerOpts
+	handlerFunc  HandlerFunc
 }
 
 type KafkaServer struct {
 	mutex    sync.RWMutex
 	logger   *log.Logger
-	handlers map[KafkaApiId]handlerState
+	handlers map[ApiKey]handlerState
+}
+
+type ApiVersionRange struct {
+	Min ApiVersion
+	Max ApiVersion
+}
+
+var apisMap map[ApiKey]ApiVersionRange
+
+func GetSupportedApis() map[ApiKey]ApiVersionRange {
+	return apisMap
+}
+
+func addSupportedApi(apiKey ApiKey, vesionRange ApiVersionRange) {
+	if apisMap == nil {
+		apisMap = make(map[ApiKey]ApiVersionRange)
+	}
+	_, found := apisMap[apiKey]
+
+	if found {
+		return
+	}
+
+	apisMap[apiKey] = vesionRange
+}
+
+func (vr ApiVersionRange) Contains(version ApiVersion) bool {
+	return version >= vr.Min && version <= vr.Max
 }
 
 func NewKafkaServer() *KafkaServer {
 	return &KafkaServer{
 		logger:   log.New(os.Stdout, "kafka-server:", log.LstdFlags|log.LUTC|log.Lmsgprefix|log.Lshortfile),
-		handlers: make(map[KafkaApiId]handlerState),
+		handlers: make(map[ApiKey]handlerState),
 	}
 }
 
 func (ks *KafkaServer) Handler(apiKey ApiKey) *handlerBuilder {
 	return &handlerBuilder{
-		server:     ks,
-		apiKey:     apiKey,
-		minVersion: -1,
-		maxVersion: -1,
+		server: ks,
+		apiKey: apiKey,
+		versionRange: ApiVersionRange{
+			Min: 0,
+			Max: 0,
+		},
 		opts: handlerOpts{
 			handlerRequestOpts{
 				version: 2,
@@ -70,34 +95,28 @@ func (ks *KafkaServer) Handler(apiKey ApiKey) *handlerBuilder {
 }
 
 func (ks *KafkaServer) handlerFunc(
-	apiKey KafkaApiId,
+	apiKey ApiKey,
+	versionRange ApiVersionRange,
 	handler HandlerFunc,
 	opts handlerOpts,
 ) {
 	ks.mutex.Lock()
 	defer ks.mutex.Unlock()
 
-	for handlerKey := range ks.handlers {
-		if apiKey.ApiKey != handlerKey.ApiKey {
-			continue
-		}
-
-		hasConflictWithMinVersion := apiKey.MinVersion >= handlerKey.MinVersion && apiKey.MinVersion <= handlerKey.MaxVersion
-		hasConflictWithMaxVersion := apiKey.MaxVersion >= handlerKey.MinVersion && apiKey.MaxVersion <= handlerKey.MaxVersion
-
-		if hasConflictWithMinVersion || hasConflictWithMaxVersion {
-			ks.logger.Panicf(
-				"api[key=%d,minVersion=%d,maxVersion=%version] has conflict with already registred api[key=%d,minVersion=%d,maxVersion=%version]",
-				apiKey.ApiKey, apiKey.MinVersion, apiKey.MaxVersion,
-				handlerKey.ApiKey, handlerKey.MinVersion, handlerKey.MaxVersion,
-			)
-		}
+	if foundedHandlerState, found := ks.handlers[apiKey]; found {
+		ks.logger.Panicf(
+			"api with key %d is already registred for the following version range[Min=%d,Max=%d]",
+			apiKey, foundedHandlerState.versionRange.Min, foundedHandlerState.versionRange.Max,
+		)
 	}
 
 	ks.handlers[apiKey] = handlerState{
-		opts:        opts,
-		handlerFunc: handler,
+		versionRange: versionRange,
+		opts:         opts,
+		handlerFunc:  handler,
 	}
+
+	addSupportedApi(apiKey, versionRange)
 }
 
 func (ks *KafkaServer) ListenAndServe(addr string) error {
@@ -153,16 +172,17 @@ func (ks *KafkaServer) handleRequest(res *response, req *Request) {
 	}
 }
 
-func (ks *KafkaServer) findHandler(req *Request) (handler *handlerState, exists bool) {
-	apiVersion := req.ApiVersion
-	for key, handler := range ks.handlers {
-
-		if apiVersion.Key == key.ApiKey && apiVersion.Version >= key.MinVersion && apiVersion.Version <= key.MaxVersion {
-			return &handler, true
-		}
+func (ks *KafkaServer) findHandler(req *Request) (handlerState, bool) {
+	handler, found := ks.handlers[req.ApiVersion.Key]
+	if !found {
+		return handler, false
 	}
 
-	return nil, false
+	if !handler.versionRange.Contains(req.ApiVersion.Version) {
+		return handler, false
+	}
+
+	return handler, true
 }
 
 func (ks *KafkaServer) handleError(res *response, errorCode ErrorCode) {
@@ -172,7 +192,7 @@ func (ks *KafkaServer) handleError(res *response, errorCode ErrorCode) {
 		version = int(handlerState.opts.response.version)
 	}
 
-	if err := ks.writeResponseHeaders(res, version); err != nil { // TODO fix version here
+	if err := ks.writeResponseHeaders(res, version); err != nil {
 		ks.logger.Panicf("Couldn't encode response headers: %s\n%v", fmt.Sprint(res.headers), err)
 	}
 
@@ -266,17 +286,18 @@ func (c *conn) readRequest() (res *response, err error) {
 }
 
 type handlerBuilder struct {
-	server      *KafkaServer
-	apiKey      ApiKey
-	minVersion  ApiVersion
-	maxVersion  ApiVersion
-	opts        handlerOpts
-	handlerFunc HandlerFunc
+	server       *KafkaServer
+	apiKey       ApiKey
+	versionRange ApiVersionRange
+	opts         handlerOpts
+	handlerFunc  HandlerFunc
 }
 
-func (hb *handlerBuilder) Version(minVersion ApiVersion, maxVersion ApiVersion) *handlerBuilder {
-	hb.minVersion = minVersion
-	hb.maxVersion = maxVersion
+func (hb *handlerBuilder) Version(min ApiVersion, max ApiVersion) *handlerBuilder {
+	hb.versionRange = ApiVersionRange{
+		Min: min,
+		Max: max,
+	}
 	return hb
 }
 
@@ -291,12 +312,7 @@ func (hb *handlerBuilder) Opts() *handlerOptsBuilder {
 func (hb *handlerBuilder) Add(handlerFunc HandlerFunc) {
 	// TODO validate if all values is setted correctly
 
-	apiKey := KafkaApiId{
-		ApiKey:     hb.apiKey,
-		MinVersion: hb.minVersion,
-		MaxVersion: hb.maxVersion,
-	}
-	hb.server.handlerFunc(apiKey, handlerFunc, hb.opts)
+	hb.server.handlerFunc(hb.apiKey, hb.versionRange, handlerFunc, hb.opts)
 }
 
 type handlerOptsBuilder struct {
