@@ -10,17 +10,16 @@ import (
 	"sync"
 
 	"github.com/codecrafters-io/kafka-starter-go/app/encoding/kafka"
-	"github.com/codecrafters-io/kafka-starter-go/app/protocol"
 )
 
 type HandlerFunc func(ResponseWriter, *Request) error
 
 type HandlerRequestOpts struct {
-	Version int16
+	Version int
 }
 
 type HandlerResponseOpts struct {
-	Version int16
+	Version int
 }
 
 type HandlerOpts struct {
@@ -34,20 +33,15 @@ type handlerState struct {
 }
 
 type KafkaApiKey struct {
-	ApiKey     protocol.ApiKey
-	MinVersion protocol.ApiVersion
-	MaxVersion protocol.ApiVersion
+	ApiKey     ApiKey
+	MinVersion ApiVersion
+	MaxVersion ApiVersion
 }
 
 type KafkaServer struct {
 	mutex    sync.RWMutex
 	logger   *log.Logger
 	handlers map[KafkaApiKey]handlerState
-}
-
-type conn struct {
-	server     *KafkaServer
-	connection net.Conn
 }
 
 func NewKafkaServer() *KafkaServer {
@@ -57,10 +51,28 @@ func NewKafkaServer() *KafkaServer {
 	}
 }
 
-func (ks *KafkaServer) HandlerFunc(
+func (ks *KafkaServer) Handler(apiKey ApiKey) *handlerBuilder {
+	return &handlerBuilder{
+		server:     ks,
+		apiKey:     apiKey,
+		minVersion: -1,
+		maxVersion: -1,
+		opts: HandlerOpts{
+			HandlerRequestOpts{
+				Version: 2,
+			},
+			HandlerResponseOpts{
+				Version: 0,
+			},
+		},
+		handlerFunc: nil,
+	}
+}
+
+func (ks *KafkaServer) handlerFunc(
 	apiKey KafkaApiKey,
 	handler HandlerFunc,
-	opts *HandlerOpts,
+	opts HandlerOpts,
 ) {
 	ks.mutex.Lock()
 	defer ks.mutex.Unlock()
@@ -82,18 +94,8 @@ func (ks *KafkaServer) HandlerFunc(
 		}
 	}
 
-	if opts == nil {
-		opts = &HandlerOpts{
-			Request: HandlerRequestOpts{
-				Version: 2,
-			},
-			Response: HandlerResponseOpts{
-				Version: 0,
-			},
-		}
-	}
 	ks.handlers[apiKey] = handlerState{
-		opts:        *opts,
+		opts:        opts,
 		handlerFunc: handler,
 	}
 }
@@ -128,7 +130,7 @@ func (ks *KafkaServer) handleRequest(res *response, req *Request) {
 	handlerState, found := ks.findHandler(req)
 
 	if !found {
-		ks.handleError(res, protocol.UnsupportedVersion)
+		ks.handleError(res, UnsupportedVersion)
 		return
 	}
 
@@ -137,17 +139,17 @@ func (ks *KafkaServer) handleRequest(res *response, req *Request) {
 
 	if err := ks.writeResponseHeaders(res, int(opts.Response.Version)); err != nil {
 		ks.logger.Printf("Couldn't encode response headers: %s\n%v", fmt.Sprint(res.headers), err)
-		ks.handleError(res, protocol.UnknownServerError)
+		ks.handleError(res, UnknownServerError)
 	}
 
 	if err := handler(res, req); err != nil {
 		ks.logger.Printf("Couldn't handle request:%v", err)
-		ks.handleError(res, protocol.UnknownServerError)
+		ks.handleError(res, UnknownServerError)
 	}
 
 	if err := ks.sendResponse(res); err != nil {
 		ks.logger.Printf("Couldn't send response:%v", err)
-		ks.handleError(res, protocol.UnknownServerError)
+		ks.handleError(res, UnknownServerError)
 	}
 }
 
@@ -163,7 +165,7 @@ func (ks *KafkaServer) findHandler(req *Request) (handler *handlerState, exists 
 	return nil, false
 }
 
-func (ks *KafkaServer) handleError(res *response, errorCode protocol.ErrorCode) {
+func (ks *KafkaServer) handleError(res *response, errorCode ErrorCode) {
 	handlerState, found := ks.findHandler(res.req)
 	version := 0
 	if found {
@@ -213,6 +215,11 @@ func (ks *KafkaServer) newConn(connection net.Conn) *conn {
 	}
 }
 
+type conn struct {
+	server     *KafkaServer
+	connection net.Conn
+}
+
 func (c *conn) serve() {
 	defer func() {
 		if err := recover(); err != nil {
@@ -229,7 +236,7 @@ func (c *conn) serve() {
 		response, err := c.readRequest()
 
 		if err != nil {
-			c.server.handleError(response, protocol.UnknownServerError)
+			c.server.handleError(response, UnknownServerError)
 		}
 
 		c.server.handleRequest(response, response.req)
@@ -258,75 +265,56 @@ func (c *conn) readRequest() (res *response, err error) {
 	return res, nil
 }
 
-// func HandleConnection(conn net.Conn) {
-// 	defer conn.Close()
+type handlerBuilder struct {
+	server      *KafkaServer
+	apiKey      ApiKey
+	minVersion  ApiVersion
+	maxVersion  ApiVersion
+	opts        HandlerOpts
+	handlerFunc HandlerFunc
+}
 
-// 	for {
-// 		request, err := ParseRequest(conn)
+func (hb *handlerBuilder) Version(minVersion ApiVersion, maxVersion ApiVersion) *handlerBuilder {
+	hb.minVersion = minVersion
+	hb.maxVersion = maxVersion
+	return hb
+}
 
-// 		if err != nil {
-// 			if err == io.EOF {
-// 				fmt.Println("Connection ended")
-// 				break
-// 			}
-// 			panic(err)
-// 		}
+func (hb *handlerBuilder) Opts() *handlerOptsBuilder {
+	return &handlerOptsBuilder{
+		handlerBuilder: hb,
+		requestOpts:    hb.opts.Request,
+		responseOpts:   hb.opts.Response,
+	}
+}
 
-// 		fmt.Printf("Request ApiKey: %d, ApiVersion: %d\n", request.ApiVersion.Key, request.ApiVersion.Version)
-// 		writer := bufio.NewWriter(conn)
-// 		err = requestHandler(request, writer)
+func (hb *handlerBuilder) Add(handlerFunc HandlerFunc) {
+	apiKey := KafkaApiKey{
+		ApiKey:     hb.apiKey,
+		MinVersion: hb.minVersion,
+		MaxVersion: hb.maxVersion,
+	}
+	hb.server.handlerFunc(apiKey, handlerFunc, hb.opts)
+}
 
-// 		if err != nil {
-// 			fmt.Println("Error on handle request: ", err.Error())
-// 			break
-// 		}
+type handlerOptsBuilder struct {
+	handlerBuilder *handlerBuilder
+	requestOpts    HandlerRequestOpts
+	responseOpts   HandlerResponseOpts
+}
 
-// 		if err = writer.Flush(); err != nil {
-// 			fmt.Println("Error on handle request: ", err.Error())
-// 			break
-// 		}
-// 	}
-// }
+func (ob *handlerOptsBuilder) RequestHeaderVersion(version int) *handlerOptsBuilder {
+	ob.requestOpts.Version = version
+	return ob
+}
 
-// func requestHandler(request *Request, writer io.Writer) (err error) {
-// 	buffer := new(bytes.Buffer)
-// 	response := &response{
-// 		writer: buffer,
-// 	}
+func (ob *handlerOptsBuilder) ResponseHeaderVersion(version int) *handlerOptsBuilder {
+	ob.responseOpts.Version = version
+	return ob
+}
 
-// 	response.header.CorrelationId = request.Headers.CorrelationId
-
-// 	responseHeaderVersion := 0
-
-// 	if request.ApiVersion.Key == handlers.DescribeTopicPartitions {
-// 		responseHeaderVersion = 1
-// 	}
-
-// 	if err = kafka.NewEncoder(response).EncodeWithOpts(response.header, &kafka.EncoderOpts{
-// 		Version: responseHeaderVersion,
-// 	}); err != nil {
-// 		return err
-// 	}
-
-// 	if !handlers.IsVersionSupported(request.ApiVersion.Key, request.ApiVersion.Version) {
-// 		if err = kafka.NewEncoder(response).Encode(handlers.UnsupportedVersion); err != nil {
-// 			return err
-// 		}
-// 	} else {
-// 		handler := handlers.GetKafkaRequestHandler(request.ApiVersion.Key)
-
-// 		if err = handler(response, request); err != nil {
-// 			return err
-// 		}
-// 	}
-
-// 	if err = kafka.NewEncoder(writer).Encode(response.messageSize()); err != nil {
-// 		return err
-// 	}
-
-// 	if _, err = io.Copy(writer, buffer); err != nil {
-// 		return err
-// 	}
-
-// 	return nil
-// }
+func (ob *handlerOptsBuilder) And() *handlerBuilder {
+	ob.handlerBuilder.opts.Request = ob.requestOpts
+	ob.handlerBuilder.opts.Response = ob.responseOpts
+	return ob.handlerBuilder
+}

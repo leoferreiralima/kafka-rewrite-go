@@ -4,31 +4,30 @@ import (
 	"fmt"
 
 	"github.com/codecrafters-io/kafka-starter-go/app/encoding/kafka"
-	"github.com/codecrafters-io/kafka-starter-go/app/protocol"
 	"github.com/codecrafters-io/kafka-starter-go/app/server"
 )
 
 type DescribeTopicPartitionsCursor struct {
-	Topic          string                 `kafka:"0"`
-	PartitionIndex int32                  `kafka:"1"`
-	TaggedFields   []protocol.TaggedField `kafka:"2,compact,nilable"`
+	Topic          string               `kafka:"0"`
+	PartitionIndex int32                `kafka:"1"`
+	TaggedFields   []server.TaggedField `kafka:"2,compact,nilable"`
 }
 
 type DescribeTopicPartitionsRequest struct {
 	Topics []struct {
-		Name         string                 `kafka:"0,compact"`
-		TaggedFields []protocol.TaggedField `kafka:"1,compact"`
+		Name         string               `kafka:"0,compact"`
+		TaggedFields []server.TaggedField `kafka:"1,compact"`
 	} `kafka:"0,compact"`
 	ResponsePartionLimit int32                          `kafka:"1"`
 	Cursor               *DescribeTopicPartitionsCursor `kafka:"2,nilable"`
-	TaggedFields         []protocol.TaggedField         `kafka:"3,compact,nilable"`
+	TaggedFields         []server.TaggedField           `kafka:"3,compact,nilable"`
 }
 
 type DescribeTopicPartitionsResponse struct {
 	ThrottleTimeMs int32                          `kafka:"1"`
 	Topics         []PartitionsTopicsResponseBody `kafka:"2,compact"`
 	NextCursor     *DescribeTopicPartitionsCursor `kafka:"3,nilable"`
-	TaggedFields   []protocol.TaggedField         `kafka:"4,compact,nilable"`
+	TaggedFields   []server.TaggedField           `kafka:"4,compact,nilable"`
 }
 
 func NewDescribeTopicPartitionsResponse() *DescribeTopicPartitionsResponse {
@@ -38,13 +37,13 @@ func NewDescribeTopicPartitionsResponse() *DescribeTopicPartitionsResponse {
 }
 
 type PartitionsTopicsResponseBody struct {
-	ErrorCode            protocol.ErrorCode               `kafka:"0"`
+	ErrorCode            server.ErrorCode                 `kafka:"0"`
 	Name                 string                           `kafka:"1,compact"`
 	Id                   [16]byte                         `kafka:"2,raw"`
 	IsInternal           bool                             `kafka:"3"`
 	Partitions           []DescribePartitionsResponseBody `kafka:"4,compact"`
 	AuthorizedOperations int32                            `kafka:"5"`
-	TaggedFields         []protocol.TaggedField           `kafka:"6,compact,nilable"`
+	TaggedFields         []server.TaggedField             `kafka:"6,compact,nilable"`
 }
 
 type DescribePartitionsResponseBody struct{}

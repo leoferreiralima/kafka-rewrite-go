@@ -1,4 +1,4 @@
-package protocol
+package server
 
 type ApiKey int16
 type ApiVersion int16

@@ -2,37 +2,23 @@ package main
 
 import (
 	"github.com/codecrafters-io/kafka-starter-go/app/handlers"
-	"github.com/codecrafters-io/kafka-starter-go/app/protocol"
 	"github.com/codecrafters-io/kafka-starter-go/app/server"
 )
 
 func main() {
 	kafkaServer := server.NewKafkaServer()
 
-	kafkaServer.HandlerFunc(server.KafkaApiKey{
-		ApiKey:     protocol.ApiVersions,
-		MinVersion: 0,
-		MaxVersion: 4,
-	},
-		handlers.ApiVersionsHandler,
-		nil,
-	)
+	kafkaServer.
+		Handler(server.ApiVersions).
+		Version(0, 4).Add(handlers.ApiVersionsHandler)
 
-	kafkaServer.HandlerFunc(server.KafkaApiKey{
-		ApiKey:     protocol.DescribeTopicPartitions,
-		MinVersion: 0,
-		MaxVersion: 0,
-	},
-		handlers.DescribeTopicPartitionsHandler,
-		&server.HandlerOpts{
-			Request: server.HandlerRequestOpts{
-				Version: 2,
-			},
-			Response: server.HandlerResponseOpts{
-				Version: 1,
-			},
-		},
-	)
+	kafkaServer.
+		Handler(server.DescribeTopicPartitions).
+		Version(0, 0).
+		Opts().
+		ResponseHeaderVersion(1).
+		And().
+		Add(handlers.DescribeTopicPartitionsHandler)
 
 	err := kafkaServer.ListenAndServe(":9092")
 

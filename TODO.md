@@ -1,0 +1,4 @@
+- [ ] Tests
+- [ ] Refatoração
+- [ ] Melhorar Roteamento
+- [ ] Bug de não retornar resposta completa localmente

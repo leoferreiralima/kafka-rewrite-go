@@ -1,13 +1,13 @@
 package handlers
 
-import "github.com/codecrafters-io/kafka-starter-go/app/protocol"
+import "github.com/codecrafters-io/kafka-starter-go/app/server"
 
 const (
-	ApiVersions             protocol.ApiKey = 18
-	DescribeTopicPartitions protocol.ApiKey = 75
+	ApiVersions             server.ApiKey = 18
+	DescribeTopicPartitions server.ApiKey = 75
 )
 
 const (
-	UnsupportedVersion protocol.ErrorCode = 35
-	UnknownTopic       protocol.ErrorCode = 3
+	UnsupportedVersion server.ErrorCode = 35
+	UnknownTopic       server.ErrorCode = 3
 )
