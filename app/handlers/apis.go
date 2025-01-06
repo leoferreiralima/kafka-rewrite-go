@@ -1,20 +1,13 @@
 package handlers
 
-type ApiKey int16
+import "github.com/codecrafters-io/kafka-starter-go/app/protocol"
 
 const (
-	ApiVersions             ApiKey = 18
-	DescribeTopicPartitions ApiKey = 75
+	ApiVersions             protocol.ApiKey = 18
+	DescribeTopicPartitions protocol.ApiKey = 75
 )
-
-type ErrorCode int16
 
 const (
-	UnsupportedVersion ErrorCode = 35
-	UnknownTopic       ErrorCode = 3
+	UnsupportedVersion protocol.ErrorCode = 35
+	UnknownTopic       protocol.ErrorCode = 3
 )
-
-type TaggedField struct {
-	Tag  uint32 `kafka:"0"`
-	Data []byte `kafka:"1"`
-}

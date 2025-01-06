@@ -3,12 +3,13 @@ package handlers
 import (
 	"fmt"
 
+	"github.com/codecrafters-io/kafka-starter-go/app/protocol"
 	"github.com/codecrafters-io/kafka-starter-go/app/server"
 )
 
 type KafkaRequestHandlerFunc func(response server.ResponseWriter, request *server.Request) error
 
-func GetKafkaRequestHandler(apiKey ApiKey) KafkaRequestHandlerFunc {
+func GetKafkaRequestHandler(apiKey protocol.ApiKey) KafkaRequestHandlerFunc {
 	switch apiKey {
 	case ApiVersions:
 		return ApiVersionsHandler

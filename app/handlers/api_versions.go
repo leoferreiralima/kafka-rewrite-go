@@ -5,20 +5,21 @@ import (
 	"sync"
 
 	"github.com/codecrafters-io/kafka-starter-go/app/encoding/kafka"
+	"github.com/codecrafters-io/kafka-starter-go/app/protocol"
 	"github.com/codecrafters-io/kafka-starter-go/app/server"
 )
 
 type ApiVersionsRequest struct {
-	ClientId      string        `kafka:"0,compact"`
-	ClientVersion string        `kafka:"1,compact"`
-	TaggedFields  []TaggedField `kafka:"2,compact"`
+	ClientId      string                 `kafka:"0,compact"`
+	ClientVersion string                 `kafka:"1,compact"`
+	TaggedFields  []protocol.TaggedField `kafka:"2,compact"`
 }
 
 type ApiVersionsResponse struct {
-	ErrorCode      ErrorCode       `kafka:"0"`
-	ApiKeys        []ApiKeyVersion `kafka:"1,compact"`
-	ThrottleTimeMs int32           `kafka:"2"`
-	TaggedFields   []TaggedField   `kafka:"3,compact,nilable"`
+	ErrorCode      protocol.ErrorCode     `kafka:"0"`
+	ApiKeys        []ApiKeyVersion        `kafka:"1,compact"`
+	ThrottleTimeMs int32                  `kafka:"2"`
+	TaggedFields   []protocol.TaggedField `kafka:"3,compact,nilable"`
 }
 
 func NewApiVersionsResponseBody() *ApiVersionsResponse {
@@ -28,10 +29,10 @@ func NewApiVersionsResponseBody() *ApiVersionsResponse {
 }
 
 type ApiKeyVersion struct {
-	Key          ApiKey        `kafka:"0"`
-	MinVersion   int16         `kafka:"1"`
-	MaxVersion   int16         `kafka:"2"`
-	TaggedFields []TaggedField `kafka:"3,compact,nilable"`
+	Key          protocol.ApiKey        `kafka:"0"`
+	MinVersion   int16                  `kafka:"1"`
+	MaxVersion   int16                  `kafka:"2"`
+	TaggedFields []protocol.TaggedField `kafka:"3,compact,nilable"`
 }
 
 func ApiVersionsHandler(responseWriter server.ResponseWriter, request *server.Request) (err error) {
@@ -54,12 +55,12 @@ func ApiVersionsHandler(responseWriter server.ResponseWriter, request *server.Re
 	return kafka.NewEncoder(responseWriter).Encode(responseBody)
 }
 
-var supportedApiVersions map[ApiKey]ApiKeyVersion
+var supportedApiVersions map[protocol.ApiKey]ApiKeyVersion
 
 var supportedApiVersionsOnce sync.Once
 
 func initSupportedApiVersions() {
-	supportedApiVersions = make(map[ApiKey]ApiKeyVersion)
+	supportedApiVersions = make(map[protocol.ApiKey]ApiKeyVersion)
 
 	supportedApiVersions[ApiVersions] = ApiKeyVersion{
 		Key:        ApiVersions,
@@ -74,12 +75,12 @@ func initSupportedApiVersions() {
 	}
 }
 
-func GetSupportedApiVersions() map[ApiKey]ApiKeyVersion {
+func GetSupportedApiVersions() map[protocol.ApiKey]ApiKeyVersion {
 	supportedApiVersionsOnce.Do(initSupportedApiVersions)
 	return supportedApiVersions
 }
 
-func IsVersionSupported(apiKey ApiKey, version int16) bool {
+func IsVersionSupported(apiKey protocol.ApiKey, version int16) bool {
 	apiKeyVersion, exists := GetSupportedApiVersions()[apiKey]
 
 	if !exists {
